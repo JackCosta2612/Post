@@ -1,0 +1,41 @@
+{
+  "fill": {
+    "automatic-gradient": "extended-srgb:0.96000,0.98000,1.00000,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "04-tray-front.svg",
+          "name": "04-tray-front"
+        },
+        {
+          "image-name": "03-letter-flap.svg",
+          "name": "03-letter-flap"
+        },
+        {
+          "image-name": "02-letter.svg",
+          "name": "02-letter"
+        },
+        {
+          "image-name": "01-tray-back.svg",
+          "name": "01-tray-back"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.3
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared",
+    "circles": [
+      "watchOS"
+    ]
+  }
+}

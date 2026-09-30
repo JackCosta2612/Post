@@ -1,0 +1,17 @@
+name: Checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Behavioral and simulated Gmail checks
+        run: ./test.sh
+      - name: Build a disposable app
+        run: POST_SIGNING_IDENTITY=- ./build.sh
+      - name: Verify signature
+        run: codesign --verify --deep --strict ../Post.app

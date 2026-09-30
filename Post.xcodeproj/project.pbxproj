@@ -1,0 +1,31 @@
+// !$*UTF8*$!
+{archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+AA1111111111111111111111 = {isa = PBXFileReference; lastKnownFileType = folder.icon; path = Post.icon; sourceTree = "<group>"; };
+AA2222222222222222222222 = {isa = PBXBuildFile; fileRef = AA1111111111111111111111; };
+7CDA8C8CF9980B745963A4CC = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Setup.md; sourceTree = "<group>"; };
+08338D35FB4FCC1478E4D17F = {isa = PBXBuildFile; fileRef = 7CDA8C8CF9980B745963A4CC; };
+F85E2370F2BCB7F9EC2B2336 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gmail.swift; sourceTree = "<group>"; };
+2274FFC166682041AE64BEAA = {isa = PBXBuildFile; fileRef = F85E2370F2BCB7F9EC2B2336; };
+41606732E187A29A3E95BEBF = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailStore.swift; sourceTree = "<group>"; };
+8F3E6B802A34B71B04F5D0C7 = {isa = PBXBuildFile; fileRef = 41606732E187A29A3E95BEBF; };
+19BFBC84FD9B2B92C10227AA = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+487C502A5481E87001E8CC43 = {isa = PBXBuildFile; fileRef = 19BFBC84FD9B2B92C10227AA; };
+41A73C947834DA32B6F85268 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostApp.swift; sourceTree = "<group>"; };
+540BBD8DCA599D7FDEDDA151 = {isa = PBXBuildFile; fileRef = 41A73C947834DA32B6F85268; };
+2B97935E2984DBD78A9F4AD5 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
+4AF090DF56D724E72C1CAF6A = {isa = PBXBuildFile; fileRef = 2B97935E2984DBD78A9F4AD5; };
+7D1043473D55BFA90E8530D3 = {isa = PBXFileReference; explicitFileType = wrapper.application; path = Post.app; sourceTree = BUILT_PRODUCTS_DIR; };
+BCE16DD0260827ECF338C787 = {isa = PBXGroup; children = (F85E2370F2BCB7F9EC2B2336,41606732E187A29A3E95BEBF,19BFBC84FD9B2B92C10227AA,41A73C947834DA32B6F85268,2B97935E2984DBD78A9F4AD5); path = Sources; sourceTree = "<group>"; };
+FBDC4F23F93125BBEEAE800C = {isa = PBXGroup; children = (7D1043473D55BFA90E8530D3); name = Products; sourceTree = "<group>"; };
+DC76E9F0C0006E8F919E0C51 = {isa = PBXGroup; children = (AA1111111111111111111111,7CDA8C8CF9980B745963A4CC,BCE16DD0260827ECF338C787, FBDC4F23F93125BBEEAE800C); sourceTree = "<group>"; };
+FE77C82BB2A42EFEEC930360 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (2274FFC166682041AE64BEAA,8F3E6B802A34B71B04F5D0C7,487C502A5481E87001E8CC43,540BBD8DCA599D7FDEDDA151,4AF090DF56D724E72C1CAF6A); runOnlyForDeploymentPostprocessing = 0; };
+0189424A5A60FED329FA868E = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (AA2222222222222222222222,08338D35FB4FCC1478E4D17F); runOnlyForDeploymentPostprocessing = 0; };
+0E8A3AD980EC179856012B7E = {isa = PBXNativeTarget; buildConfigurationList = 011485B2EE57B7D61ACA51C9; buildPhases = (FE77C82BB2A42EFEEC930360,0189424A5A60FED329FA868E); buildRules = (); dependencies = (); name = Post; productName = Post; productReference = 7D1043473D55BFA90E8530D3; productType = "com.apple.product-type.application"; };
+98F54143AB4E86B28C3AFEE0 = {isa = PBXProject; attributes = {LastUpgradeCheck = 2700;}; buildConfigurationList = 15FD5A6CB082B2EEE99CAC7F; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = DC76E9F0C0006E8F919E0C51; productRefGroup = FBDC4F23F93125BBEEAE800C; projectDirPath = ""; projectRoot = ""; targets = (0E8A3AD980EC179856012B7E); };
+9A3C1EE301EC9F46B8FCBBBB = {isa = XCBuildConfiguration; buildSettings = {MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone";}; name = Debug; };
+5D4AE94DA0B27833AE568E9C = {isa = XCBuildConfiguration; buildSettings = {MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0;}; name = Release; };
+15FD5A6CB082B2EEE99CAC7F = {isa = XCConfigurationList; buildConfigurations = (9A3C1EE301EC9F46B8FCBBBB,5D4AE94DA0B27833AE568E9C); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+A8288EAD101D3680C2AC7BC8 = {isa = XCBuildConfiguration; buildSettings = {MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0;ASSETCATALOG_COMPILER_APPICON_NAME = Post; PRODUCT_BUNDLE_IDENTIFIER = com.jack.Post; PRODUCT_NAME = "$(TARGET_NAME)"; INFOPLIST_FILE = Info.plist; CODE_SIGN_IDENTITY = "Post Local Development"; CODE_SIGN_STYLE = Manual; ENABLE_APP_SANDBOX = NO; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_OPTIMIZATION_LEVEL = "-Onone";}; name = Debug; };
+8EB64F55E62F34DE5618DACF = {isa = XCBuildConfiguration; buildSettings = {MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0;ASSETCATALOG_COMPILER_APPICON_NAME = Post; PRODUCT_BUNDLE_IDENTIFIER = com.jack.Post; PRODUCT_NAME = "$(TARGET_NAME)"; INFOPLIST_FILE = Info.plist; CODE_SIGN_IDENTITY = "Post Local Development"; CODE_SIGN_STYLE = Manual; ENABLE_APP_SANDBOX = NO; SWIFT_EMIT_LOC_STRINGS = YES;}; name = Release; };
+011485B2EE57B7D61ACA51C9 = {isa = XCConfigurationList; buildConfigurations = (A8288EAD101D3680C2AC7BC8,8EB64F55E62F34DE5618DACF); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+}; rootObject = 98F54143AB4E86B28C3AFEE0; }

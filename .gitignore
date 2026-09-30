@@ -1,0 +1,16 @@
+.DS_Store
+.build/
+*.app/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+IconConcepts/
+docs/demo-frames/
+mail-cache.json
+client_secret*.json
+*.p12
+*.pfx
+*.key
+*.pem
+.env
+.env.*
