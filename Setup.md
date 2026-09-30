@@ -41,9 +41,9 @@ Google's Testing status expires authorizations using Gmail scopes after seven da
 
 ## Sync and storage
 
-Post checks for changes every 60 seconds while it is open. Switching folders and searching fetch the requested results. Manual refresh shows the loading strip; background sync is quiet. Cached bodies are reused and requests are paced. Gmail quota errors cause a cooldown instead of repeated requests.
+Post checks for changes every 60 seconds while it is open. Switching folders fetches their messages. Search highlights matches in the loaded list, including body matches shown in the snippet, without fetching or filtering mail. Manual refresh shows the loading strip; background sync is quiet. Cached bodies are reused and requests are paced. Gmail quota errors cause a cooldown instead of repeated requests.
 
-The Google client and tokens are in macOS Keychain. Cached mail, preferences, and local drafts are in `~/Library/Application Support/Post/mail-cache.json`. Embedded image bytes are cached with mail after download. External images are blocked by default and can be enabled per message or in settings. Attachments download on demand and can be saved to a location you choose.
+The Google client and tokens are in macOS Keychain. Cached mail, preferences, and local drafts are in `~/Library/Application Support/Post/mail-cache.json`. Embedded image bytes are cached with mail after download. External images use a shared cache capped at 32 MB in memory and 128 MB on disk, and are loaded without cookies. External images are blocked by default and can be enabled per message or in settings. Attachments download on demand and can be saved to a location you choose.
 
 ## Troubleshooting
 

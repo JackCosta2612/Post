@@ -233,3 +233,37 @@ enum MessageQuote {
         return (lines[..<index].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines), lines[index...].joined(separator: "\n"))
     }
 }
+
+// Repair cached MIME body parts produced by older versions, without a network request.
+extension MailMessage {
+    mutating func recoverBodyParts() {
+        let parts = attachments.filter { $0.name == "Inline image" && ["text/html", "text/plain"].contains($0.mimeType) && $0.data != nil }
+        for part in parts {
+            guard let data = part.data, let text = String(data: data, encoding: .utf8) else { continue }
+            if part.mimeType == "text/html", html.isEmpty { html = text }
+            if part.mimeType == "text/plain" { body = text }
+        }
+        attachments.removeAll { part in parts.contains { $0.id == part.id } }
+    }
+}
+
+enum MessageHTML {
+    static func cachedImageURLs(_ html: String) -> String {
+        // Rewrite image sources and CSS backgrounds, leaving links unchanged.
+        let pattern = #"(?i)(\bsrc\s*=\s*["']|url\(\s*["']?)(https?://[^"'<>\s)]+)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return html }
+        var result = html
+        for match in regex.matches(in: html, range: NSRange(html.startIndex..., in: html)).reversed() {
+            guard let range = Range(match.range(at: 2), in: result) else { continue }
+            let value = String(result[range])
+            result.replaceSubrange(range, with: value.replacingOccurrences(of: "://", with: "/", range: value.range(of: "://")).withImageScheme)
+        }
+        return result
+    }
+    static func originalImageURL(_ url: URL) -> URL? {
+        guard url.scheme == "post-image", let host = url.host, ["https", "http"].contains(host) else { return nil }
+        let value = url.absoluteString.replacingOccurrences(of: "post-image://" + host + "/", with: host + "://")
+        return URL(string: value.replacingOccurrences(of: "&amp;", with: "&"))
+    }
+}
+private extension String { var withImageScheme: String { "post-image://" + self } }

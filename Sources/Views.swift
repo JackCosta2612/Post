@@ -77,7 +77,7 @@ struct MailWindow: View {
         .background(WindowChrome())
         .buttonStyle(PostButtonStyle())
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: store.preferences.collapsed)
-        .animation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.88), value: store.selectedID)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: store.selectedID)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: store.selectedDraftID)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: store.bulkIDs)
         .background(PostStyle.background)
@@ -101,7 +101,7 @@ struct MailWindow: View {
         .onChange(of: store.selectedDraftID) { _, _ in searchFocused = false }
         .onChange(of: store.selectedID) { _, _ in searchFocused = false }
         .onChange(of: store.focusSearch) { _, value in if value { searchFocused = true; store.focusSearch = false } }
-        .onChange(of: store.search) { _, _ in store.select(nil); if store.connected { store.scheduleLoad() } }
+
     }
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -160,7 +160,7 @@ struct MailWindow: View {
     private var topBar: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(store.search.isEmpty ? store.folder.name : "Search results").font(.system(size: 20, weight: .semibold)).lineLimit(1)
+                Text(store.folder.name).font(.system(size: 20, weight: .semibold)).lineLimit(1)
                 Text("\(store.folderID == "DRAFT" ? store.drafts.count : store.visibleMessages.count) messages").font(.system(size: 11)).foregroundStyle(PostStyle.secondary)
             }
             Spacer(minLength: 8)
@@ -170,7 +170,7 @@ struct MailWindow: View {
             }.disabled(store.busy).help("Refresh mail").contextMenu { Button("Refresh mail") { Task { await store.refresh(manual: true) } } }
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(PostStyle.secondary)
-                TextField("Search mail", text: $store.search).textFieldStyle(.plain).focused($searchFocused).onSubmit { Task { await store.refresh() } }
+                TextField("Search mail", text: $store.search).textFieldStyle(.plain).focused($searchFocused)
                 if !store.search.isEmpty { Button { store.search = "" } label: { Image(systemName: "xmark") } }
             }.padding(10).background(PostStyle.surface.opacity(0.65), in: RoundedRectangle(cornerRadius: 10)).frame(width: 220)
             Button { store.newCompose() } label: {
@@ -236,10 +236,10 @@ struct MessageRow: View {
             HStack(alignment: .top, spacing: 11) {
                 RoundedRectangle(cornerRadius: 2).fill(message.unread ? PostStyle.accent : .clear).frame(width: 7, height: 7).padding(.top, 6)
                 VStack(alignment: .leading, spacing: 5) {
-                    HStack { Text(message.senderName).font(.system(size: 14, weight: message.unread ? .semibold : .medium)).lineLimit(1); Spacer(); Text(dateLabel).font(.system(size: 10)).foregroundStyle(PostStyle.secondary) }
-                    HStack(spacing: 4) { if message.labels.contains("STARRED") { Image(systemName: "star.fill").font(.system(size: 10)).foregroundStyle(.orange) }; Text(message.subject).font(.system(size: 12.5, weight: message.unread ? .medium : .regular)).lineLimit(1); let files = message.attachments.filter { $0.contentID == nil }
+                    HStack { Text(SearchHighlight.text(message.senderName, query: store.search)).font(.system(size: 14, weight: message.unread ? .semibold : .medium)).lineLimit(1); Spacer(); Text(dateLabel).font(.system(size: 10)).foregroundStyle(PostStyle.secondary) }
+                    HStack(spacing: 4) { if message.labels.contains("STARRED") { Image(systemName: "star.fill").font(.system(size: 10)).foregroundStyle(.orange) }; Text(SearchHighlight.text(message.subject, query: store.search)).font(.system(size: 12.5, weight: message.unread ? .medium : .regular)).lineLimit(1); let files = message.attachments.filter { $0.contentID == nil }
                             if !files.isEmpty { Image(systemName: "paperclip").font(.system(size: 10)).foregroundStyle(.secondary) } }
-                    Text(message.snippet).font(.system(size: 12)).foregroundStyle(PostStyle.secondary).lineLimit(1)
+                    Text(SearchHighlight.text(searchSnippet, query: store.search)).font(.system(size: 12)).foregroundStyle(PostStyle.secondary).lineLimit(1)
                 }
             }.padding(.horizontal, 14).padding(.vertical, 15).frame(maxWidth: .infinity, alignment: .leading)
                 .background(store.bulkMode && store.bulkIDs.contains(message.id) ? PostStyle.bulk : !store.bulkMode && store.selectedID == message.id ? PostStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 10))
@@ -256,6 +256,13 @@ struct MessageRow: View {
             Button("Move to Trash") { store.prepareContextSelection(message.id); store.actOnSelected(add: ["TRASH"], remove: ["INBOX"], advance: true) }
         }
 
+    }
+    private var searchSnippet: String {
+        guard !store.search.isEmpty, !message.snippet.localizedCaseInsensitiveContains(store.search),
+              let match = message.body.range(of: store.search, options: [.caseInsensitive, .diacriticInsensitive]) else { return message.snippet }
+        let start = message.body.index(match.lowerBound, offsetBy: -35, limitedBy: message.body.startIndex) ?? message.body.startIndex
+        let end = message.body.index(match.upperBound, offsetBy: 100, limitedBy: message.body.endIndex) ?? message.body.endIndex
+        return (start == message.body.startIndex ? "" : "…") + message.body[start..<end].replacingOccurrences(of: "\n", with: " ")
     }
     private var dateLabel: String {
         if Calendar.current.isDateInToday(message.date) { return message.date.formatted(date: .omitted, time: .shortened) }
@@ -288,7 +295,7 @@ struct ReadingPane: View {
                     }.controlSize(.small).padding(.horizontal, 20).padding(.vertical, 14).frame(height: 61)
                     ScrollViewReader { proxy in
                         ScrollView {
-                            VStack(alignment: .leading, spacing: 16) {
+                            LazyVStack(alignment: .leading, spacing: 16) {
                                 Text(selected.subject).font(.system(size: 25, weight: .semibold)).textSelection(.enabled).padding(.bottom, 8)
                                 ForEach(store.threadMessages) { message in
                                     ConversationMessage(message: message, plain: plain)
@@ -296,9 +303,11 @@ struct ReadingPane: View {
                                         .padding(18)
                                         .background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 12))
                                 }
-                            }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                            }.padding(24).frame(maxWidth: .infinity, alignment: .leading).id("thread-top")
                         }
-                        .onChange(of: store.selectedID) { _, id in if let id { proxy.scrollTo(id, anchor: .top) } }
+                        .onAppear { proxy.scrollTo("thread-top", anchor: .top) }
+                        .onChange(of: store.selectedID) { _, _ in proxy.scrollTo("thread-top", anchor: .top) }
+                        .id(selected.threadID)
                     }
                 }
             }
@@ -335,7 +344,7 @@ struct ConversationMessage: View {
                     HStack { Text("Remote images are blocked").font(.system(size: 11)).foregroundStyle(.secondary); Spacer(); Button("Load images") { allowImages = true }.controlSize(.small) }
                 }
                 HTMLMessage(html: message.html, remoteImages: allowImages || store.preferences.remoteImages, originalColors: originalColors, foldQuotes: true)
-                    .padding(.horizontal, 6).frame(minHeight: 100).clipShape(RoundedRectangle(cornerRadius: 7))
+                    .transaction { $0.animation = nil }.padding(.horizontal, 6).frame(minHeight: 100).clipShape(RoundedRectangle(cornerRadius: 7))
             } else {
                 let parts = MessageQuote.split(message.body)
                 Text(parts.body).font(.system(size: 14)).lineSpacing(6).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 6)
@@ -378,6 +387,7 @@ final class ThreadWebView: WKWebView {
 }
 
 struct HTMLMessage: NSViewRepresentable {
+    static let webDataStore = WKWebsiteDataStore.nonPersistent()
     let html: String
     let remoteImages: Bool
     var originalColors = false
@@ -408,7 +418,8 @@ struct HTMLMessage: NSViewRepresentable {
         """, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
         config.userContentController.addUserScript(script)
         config.userContentController.add(context.coordinator, name: "postHeight")
-        config.websiteDataStore = .nonPersistent(); config.defaultWebpagePreferences.allowsContentJavaScript = false
+        config.websiteDataStore = Self.webDataStore;
+        config.setURLSchemeHandler(PostImageLoader.shared, forURLScheme: "post-image"); config.defaultWebpagePreferences.allowsContentJavaScript = false
         let view = ThreadWebView(frame: .zero, configuration: config); view.navigationDelegate = context.coordinator; view.setValue(false, forKey: "drawsBackground"); return view
     }
     func updateNSView(_ view: WKWebView, context: Context) {
@@ -416,10 +427,11 @@ struct HTMLMessage: NSViewRepresentable {
         let signature = html + String(remoteImages) + String(colorScheme == .dark) + String(originalColors) + String(foldQuotes)
         guard context.coordinator.signature != signature else { return }
         context.coordinator.signature = signature
-        let images = remoteImages ? "https: http: data: cid:" : "data: cid:"
+        let images = remoteImages ? "post-image: data: cid:" : "data: cid:"
+        let renderedHTML = remoteImages ? MessageHTML.cachedImageURLs(html) : html
         let dark = colorScheme == .dark && !originalColors
         let colors = originalColors ? "body{background:transparent;color:#242a34}" : "body{background:transparent!important;color:\(dark ? "#e5eaf1" : "#242a34")!important}p,span,td,div,li,table{color:inherit!important;background-color:transparent!important}a,a span{color:\(dark ? "#9ecafa" : "#176edc")!important}"
-        let document = "<!doctype html><html><head><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; img-src \(images); style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'\"><style>body{font:15px -apple-system,BlinkMacSystemFont,sans-serif;color:#242a34;margin:0;padding:12px 0;box-sizing:border-box;line-height:1.65;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}a{color:#176edc}html{overflow:hidden}details.post-quote{margin-top:14px}details.post-quote>summary{cursor:pointer;font-size:12px;color:#7d8b9c;user-select:none}details.post-quote[open]>summary{margin-bottom:12px}\(colors)</style></head><body>\(html)</body></html>"
+        let document = "<!doctype html><html><head><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; img-src \(images); style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'\"><style>body{font:15px -apple-system,BlinkMacSystemFont,sans-serif;color:#242a34;margin:0;padding:12px 0;box-sizing:border-box;line-height:1.65;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}a{color:#176edc}html{overflow:hidden}details.post-quote{margin-top:14px}details.post-quote>summary{cursor:pointer;font-size:12px;color:#7d8b9c;user-select:none}details.post-quote[open]>summary{margin-bottom:12px}\(colors)</style></head><body>\(renderedHTML)</body></html>"
         view.loadHTMLString(document, baseURL: nil)
     }
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -763,4 +775,52 @@ struct PostPromptPresenter: NSViewRepresentable {
         }
     }
     final class Coordinator { var active = false }
+}
+
+/// Highlight the loaded list without changing its contents or triggering Gmail requests.
+enum SearchHighlight {
+    static func text(_ value: String, query: String) -> AttributedString {
+        var result = AttributedString(value)
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return result }
+        var remaining = value.startIndex..<value.endIndex
+        while let range = value.range(of: query, options: [.caseInsensitive, .diacriticInsensitive], range: remaining) {
+            if let start = AttributedString.Index(range.lowerBound, within: result), let end = AttributedString.Index(range.upperBound, within: result) {
+                result[start..<end].backgroundColor = Color.yellow.opacity(0.35)
+            }
+            guard range.upperBound < value.endIndex else { break }
+            remaining = range.upperBound..<value.endIndex
+        }
+        return result
+    }
+}
+
+/// Remote images share a bounded cache across messages, without cookies or sender scripts.
+final class PostImageLoader: NSObject, WKURLSchemeHandler {
+    static let shared = PostImageLoader()
+    private let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.urlCache = URLCache(memoryCapacity: 32 * 1024 * 1024, diskCapacity: 128 * 1024 * 1024, diskPath: "Post-RemoteImages")
+        config.httpCookieStorage = nil; config.httpShouldSetCookies = false
+        config.requestCachePolicy = .useProtocolCachePolicy
+        config.timeoutIntervalForRequest = 20
+        config.httpMaximumConnectionsPerHost = 6
+        return URLSession(configuration: config)
+    }()
+    private var tasks: [ObjectIdentifier: URLSessionDataTask] = [:]
+    func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
+        guard let url = task.request.url, let original = MessageHTML.originalImageURL(url) else { task.didFailWithError(URLError(.badURL)); return }
+        let key = ObjectIdentifier(task)
+        let request = URLRequest(url: original)
+        let download = session.dataTask(with: request) { [weak self] data, response, error in
+            DispatchQueue.main.async {
+                guard self?.tasks.removeValue(forKey: key) != nil else { return }
+                if let error { task.didFailWithError(error); return }
+                guard let data, let response, (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true else { task.didFailWithError(URLError(.badServerResponse)); return }
+                task.didReceive(URLResponse(url: url, mimeType: response.mimeType, expectedContentLength: data.count, textEncodingName: response.textEncodingName))
+                task.didReceive(data); task.didFinish()
+            }
+        }
+        tasks[key] = download; download.resume()
+    }
+    func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) { tasks.removeValue(forKey: ObjectIdentifier(task))?.cancel() }
 }

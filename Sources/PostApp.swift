@@ -62,7 +62,7 @@ final class PostDelegate: NSObject, NSApplicationDelegate {
     }
     func connect(_ store: MailStore) { self.store = store }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
-    func applicationWillTerminate(_ notification: Notification) { store?.persist(); if let monitor { NSEvent.removeMonitor(monitor) } }
+    func applicationWillTerminate(_ notification: Notification) { store?.persist(); store?.flushCache(); if let monitor { NSEvent.removeMonitor(monitor) } }
     private func handle(_ event: NSEvent) -> NSEvent? {
         guard Self.promptCount == 0 else { return event }
         guard let store, let shortcut = Shortcut.fromEvent(event) else { return event }

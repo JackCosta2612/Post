@@ -24,6 +24,14 @@ struct BehaviorTests {
         recovery.moveSelectedToInbox()
         check(recovery.messages[0].labels == ["INBOX", "UNREAD"], "Move from Spam restores Inbox and removes Spam")
         let store = MailStore(directory: directory)
+        let searchIDs = store.visibleMessages.map(\.id)
+        store.search = "Northpeak"
+        check(store.visibleMessages.map(\.id) == searchIDs, "Search keeps the loaded mailbox list intact")
+        store.search = ""
+        var legacyBody = store.messages[0]; legacyBody.html = ""
+        legacyBody.attachments = [.init(id: "old-html", name: "Inline image", mimeType: "text/html", size: 12, data: Data("<p>Recovered</p>".utf8), contentID: "body")]
+        legacyBody.recoverBodyParts()
+        check(legacyBody.html == "<p>Recovered</p>" && legacyBody.attachments.isEmpty, "Cached LinkedIn body parts recover without a download")
         check(store.visibleMessages.count == 5, "Primary excludes confirmations and rejections")
         check(store.folders.first { $0.id == "primary" }?.unreadCount == 4, "Unread badges count unread messages")
         check(store.folders.first { $0.id == "primary" }?.totalCount == 5, "Total badges include read messages")
@@ -71,6 +79,7 @@ struct BehaviorTests {
         var draft = ComposeDraft(to: "recipient@example.com", subject: "Candidatura ricevuta", body: "Hello,\nThis is a test.")
         draft.attachments = [.init(id: "attachment", name: "file.txt", mimeType: "text/plain", size: 3, data: Data("abc".utf8))]
         store.saveDraft(draft, sync: false)
+        store.flushCache()
         let reloaded = MailStore(directory: directory)
         check(reloaded.preferences.totalCounts && reloaded.preferences.collapsed, "Preferences survive relaunch")
         check(reloaded.preferences.shortcuts["reply"]?.display == "⌘J", "Custom shortcut persists")
@@ -183,6 +192,7 @@ struct BehaviorTests {
         threadStore.newCompose(kind: "reply", replyingTo: outgoing)
         check(threadStore.compose?.to == "team@northpeak.example", "Replying to your sent message addresses the other participant")
         threadStore.preferences.appearance = "dark"; threadStore.persist()
+        threadStore.flushCache()
         let darkStore = MailStore(directory: directory.appendingPathComponent("threads"))
         check(darkStore.preferences.appearance == "dark", "Appearance choice persists")
         print("PASS: \(checks) behavioral checks")

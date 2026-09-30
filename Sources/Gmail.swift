@@ -96,6 +96,7 @@ actor GmailClient {
     private var cooldownUntil = Date.distantPast
     private var cooldownSeconds: Double = 60
     private var countCache: [String: (Date, Int)] = [:]
+    private var attachmentRequests: [String: Task<Data, Error>] = [:]
     private var folderCache: (Date, [MailFolder])?
     static func quotaCost(_ path: String, method: String) -> Int {
         if path.contains("/attachments/") { return 20 }
@@ -281,17 +282,22 @@ actor GmailClient {
     func thread(_ id: String, cached: [MailMessage] = []) async throws -> [MailMessage] {
         let json = try await request("threads/\(id)", query: ["format": "full"])
         var values = try (json["messages"] as? [[String: Any]] ?? []).map(Self.parseMessage)
-        for i in values.indices {
-            for j in values[i].attachments.indices {
-                let item = values[i].attachments[j]
-                guard let cid = item.contentID, values[i].html.contains("cid:" + cid) else { continue }
-                // Inline images belong to the message, independent of remote-image permission.
-                let stored = cached.first { $0.id == values[i].id }?.attachments.first { $0.id == item.id && $0.contentID == cid }
-                if let bytes = try? await attachment(messageID: values[i].id, attachment: stored ?? item) {
-                    values[i].attachments[j].data = bytes
-                    values[i].html = values[i].html.replacingOccurrences(of: "cid:" + cid, with: "data:" + item.mimeType + ";base64," + bytes.base64EncodedString())
+        let cachedMap = Dictionary(cached.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
+        values = try await withThrowingTaskGroup(of: MailMessage.self) { group in
+            for value in values { group.addTask {
+                var message = value
+                message.resolveInlineImages(reusing: cachedMap[message.id])
+                for j in message.attachments.indices {
+                    let item = message.attachments[j]
+                    guard let cid = item.contentID, message.html.contains("cid:" + cid) else { continue }
+                    if let bytes = try? await self.attachment(messageID: message.id, attachment: item) {
+                        message.attachments[j].data = bytes
+                        message.html = message.html.replacingOccurrences(of: "cid:" + cid, with: "data:" + item.mimeType + ";base64," + bytes.base64EncodedString())
+                    }
                 }
-            }
+                return message
+            } }
+            var result: [MailMessage] = []; for try await value in group { result.append(value) }; return result
         }
         return values.sorted { $0.date < $1.date }
     }
@@ -317,8 +323,16 @@ actor GmailClient {
     }
     func attachment(messageID: String, attachment: MailAttachment) async throws -> Data {
         if let data = attachment.data { return data }
-        let json = try await request("messages/\(messageID)/attachments/\(attachment.id)")
-        guard let encoded = json["data"] as? String, let data = Data(base64URL: encoded) else { throw MailError.message("The attachment could not be downloaded.") }; return data
+        let key = messageID + "/" + attachment.id
+        if let existing = attachmentRequests[key] { return try await existing.value }
+        let task = Task<Data, Error> {
+            let json = try await self.request("messages/\(messageID)/attachments/\(attachment.id)")
+            guard let encoded = json["data"] as? String, let data = Data(base64URL: encoded) else { throw MailError.message("The attachment could not be downloaded.") }
+            return data
+        }
+        attachmentRequests[key] = task
+        defer { attachmentRequests.removeValue(forKey: key) }
+        return try await task.value
     }
     func send(_ draft: ComposeDraft) async throws -> MailMessage {
         let address = try await accountAddress()
@@ -364,9 +378,10 @@ actor GmailClient {
             let data = (body["data"] as? String).flatMap { Data(base64URL: $0) }
             let partHeaders = part["headers"] as? [[String: String]] ?? []
             let cid = partHeaders.first { $0["name"]?.lowercased() == "content-id" }?["value"]?.trimmingCharacters(in: CharacterSet(charactersIn: "<> "))
-            if !name.isEmpty || cid != nil { attachments.append(.init(id: body["attachmentId"] as? String ?? UUID().uuidString, name: name.isEmpty ? "Inline image" : name, mimeType: type, size: body["size"] as? Int ?? 0, data: data, messageID: id, contentID: cid)) }
-            else if type == "text/plain", let data { text += String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) ?? "" }
-            else if type == "text/html", let data { html += String(data: data, encoding: .utf8) ?? "" }
+            let disposition = partHeaders.first { $0["name"]?.lowercased() == "content-disposition" }?["value"]?.lowercased() ?? ""
+            if type == "text/plain", let data, !disposition.hasPrefix("attachment") { text += String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) ?? "" }
+            else if type == "text/html", let data, !disposition.hasPrefix("attachment") { html += String(data: data, encoding: .utf8) ?? "" }
+            else if !name.isEmpty || cid != nil || disposition.hasPrefix("attachment") { attachments.append(.init(id: body["attachmentId"] as? String ?? UUID().uuidString, name: name.isEmpty ? "Inline image" : name, mimeType: type, size: body["size"] as? Int ?? 0, data: data, messageID: id, contentID: cid)) }
             for child in part["parts"] as? [[String: Any]] ?? [] { walk(child) }
         }
         walk(p)

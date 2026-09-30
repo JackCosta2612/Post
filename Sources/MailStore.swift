@@ -50,6 +50,9 @@ final class MailStore: ObservableObject {
     var historyID: String?
     private var flushing = false
     private var loadingCache = true
+    private let cacheWriter = DispatchQueue(label: "Post.cache", qos: .utility)
+    private var cacheWork: DispatchWorkItem?
+    private var threadFetched: [String: Date] = [:]
     var selected: MailMessage? { guard !bulkMode else { return nil }; return messages.first { $0.id == selectedID } }
     var threadMessages: [MailMessage] {
         guard let selected else { return [] }
@@ -71,11 +74,10 @@ final class MailStore: ObservableObject {
         let values = messages.filter { message in
             if let remote = currentRemoteIDs, connected {
                 guard remote.contains(message.id) else { return false }
-                if message.labels.contains("TRASH") && folderID != "TRASH" && !search.contains("in:trash") { return false }
-                return !search.isEmpty || contains(folder, message)
+                return contains(folder, message)
             }
             guard contains(folder, message) else { return false }
-            return search.isEmpty || [message.from, message.subject, message.body].joined(separator: " ").localizedCaseInsensitiveContains(search)
+            return true
         }
         return values.sorted { $0.date > $1.date }
     }
@@ -94,6 +96,7 @@ final class MailStore: ObservableObject {
             var reply = earlier; reply.id = "demo-thread-2"; reply.from = "Alex <alex@example.com>"; reply.to = "Jordan <team@northpeak.example>"; reply.date = Date().addingTimeInterval(-72000); reply.body = "Hi Jordan,\n\nThursday morning works for me. Thanks for the invitation.\n\nBest,\nAlex"; reply.labels = ["SENT"]
             messages += [earlier, reply]
         }
+        for i in messages.indices { messages[i].recoverBodyParts() }
         loadingCache = false
         if !connected { updateLocalCounts() }
     }
@@ -113,12 +116,29 @@ final class MailStore: ObservableObject {
     }
     func persist() {
         guard !loadingCache else { return }
-        do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let cache = MailCache(messages: messages, folders: folders, drafts: drafts, pending: pending, lastSync: lastSync, account: connected ? account : nil, historyID: historyID, preferences: preferences)
-            let data = try JSONEncoder().encode(cache)
-            try data.write(to: directory.appendingPathComponent("mail-cache.json"), options: [.atomic, .completeFileProtectionUnlessOpen])
-        } catch { self.error = "Post could not save its local cache. \(error.localizedDescription)" }
+        let cache = MailCache(messages: messages, folders: folders, drafts: drafts, pending: pending, lastSync: lastSync, account: connected ? account : nil, historyID: historyID, preferences: preferences)
+        let directory = directory
+        cacheWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            do {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let data = try JSONEncoder().encode(cache)
+                try data.write(to: directory.appendingPathComponent("mail-cache.json"), options: [.atomic, .completeFileProtectionUnlessOpen])
+            } catch { Task { @MainActor [weak self] in self?.error = "Post could not save its local cache. \(error.localizedDescription)" } }
+        }
+        cacheWork = work
+        cacheWriter.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
+    func flushCache() {
+        guard let cacheWork else { return }
+        cacheWork.cancel()
+        // Persist an immediate snapshot, then wait for earlier writes before quitting.
+        let cache = MailCache(messages: messages, folders: folders, drafts: drafts, pending: pending, lastSync: lastSync, account: connected ? account : nil, historyID: historyID, preferences: preferences)
+        let directory = directory
+        cacheWriter.sync {
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            if let data = try? JSONEncoder().encode(cache) { try? data.write(to: directory.appendingPathComponent("mail-cache.json"), options: [.atomic, .completeFileProtectionUnlessOpen]) }
+        }
     }
     func updateLocalCounts() {
         for i in folders.indices {
@@ -143,11 +163,14 @@ final class MailStore: ObservableObject {
         guard let id, let message = messages.first(where: { $0.id == id }) else { return }
         conversation = messages.filter { $0.threadID == message.threadID }.sorted { $0.date < $1.date }
         if preferences.markRead && message.unread { change(id, add: [], remove: ["UNREAD"], recordUndo: false) }
-        if connected {
+        if connected, threadFetched[message.threadID].map({ Date().timeIntervalSince($0) < 120 }) != true {
             selectionTask = Task {
                 do {
+                    try await Task.sleep(nanoseconds: 120_000_000)
+                    try Task.checkCancellation()
                     let values = try await gmail.thread(message.threadID, cached: messages)
                     guard !Task.isCancelled, selectedID == id else { return }
+                    threadFetched[message.threadID] = Date()
                     merge(values); conversation = messages.filter { $0.threadID == message.threadID }.sorted { $0.date < $1.date }; persist()
                     if preferences.markRead { for m in values where m.unread { change(m.id, add: [], remove: ["UNREAD"], recordUndo: false) } }
                 } catch { if !Task.isCancelled { status = "Showing cached message" } }
@@ -214,6 +237,7 @@ final class MailStore: ObservableObject {
         var map = Dictionary(messages.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
         for m in incoming {
             var value = m
+            value.recoverBodyParts()
             value.resolveInlineImages(reusing: map[m.id])
             for change in pending where change.messageID == value.id { value.labels.formUnion(change.add); value.labels.subtract(change.remove) }
             map[m.id] = value
@@ -227,7 +251,7 @@ final class MailStore: ObservableObject {
         defer { busy = false; manualRefreshing = false }
         let generation = UUID(); refreshGeneration = generation
         var historyValid = historyID != nil
-        let oldIDs = Set(messages.map(\.id)); let viewID = folderID; let queryText = search
+        let oldIDs = Set(messages.map(\.id)); let viewID = folderID
         if !silent { status = "Syncing Gmail…" }
         do {
             try await flushPending()
@@ -235,21 +259,22 @@ final class MailStore: ObservableObject {
                 if let historyID {
                     do {
                         let (updates, deleted, newest) = try await gmail.changes(since: historyID, cachedIDs: Set(messages.map(\.id)))
+                        for message in updates { threadFetched.removeValue(forKey: message.threadID) }
                         merge(updates); messages.removeAll { deleted.contains($0.id) }; self.historyID = newest
                     } catch MailError.http(404, _) { self.historyID = nil; historyValid = false }
                 }
                 if self.historyID == nil { self.historyID = try await gmail.profileHistory() }
             }
-            let query = queryText.isEmpty ? (folderID == "primary" ? primaryQuery : folder.query) : queryText
+            let query = folderID == "primary" ? primaryQuery : folder.query
             let page = more ? nextPage : nil
             let (incoming, pageToken) = try await gmail.list(query: query, page: page, cached: historyValid ? messages : [])
-            guard !Task.isCancelled, folderID == viewID, search == queryText, refreshGeneration == generation else { return }
+            guard !Task.isCancelled, folderID == viewID, refreshGeneration == generation else { return }
             merge(incoming)
             currentRemoteIDs = more ? (currentRemoteIDs ?? []).union(incoming.map(\.id)) : Set(incoming.map(\.id))
             nextPage = pageToken
             if !more {
                 let remoteFolders = try await gmail.folders()
-                guard folderID == viewID, search == queryText else { return }
+                guard folderID == viewID else { return }
                 folders = remoteFolders
                 if !folders.contains(where: { $0.id == folderID }) { folderID = "primary"; currentRemoteIDs = nil }
                 // Composite views count messages in their own query, rather than a category's archived mail.
@@ -295,7 +320,7 @@ final class MailStore: ObservableObject {
                 folders[i].totalCount = max(0, folders[i].totalCount + (now ? 1 : 0) - (was ? 1 : 0))
                 folders[i].unreadCount = max(0, folders[i].unreadCount + (now && changed.unread ? 1 : 0) - (was && previous.unread ? 1 : 0))
             }
-            if !contains(folder, changed) && search.isEmpty { currentRemoteIDs?.remove(id) }
+            if !contains(folder, changed) { currentRemoteIDs?.remove(id) }
             pending.append(.init(messageID: id, add: add, remove: remove))
             Task {
                 do { try await flushPending(); status = "Saved to Gmail" }

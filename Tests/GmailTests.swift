@@ -18,6 +18,16 @@ struct GmailTests {
     static func main() async throws {
         var checks = 0
         func check(_ value: Bool, _ name: String) { checks += 1; if !value { fatalError("FAILED: \(name)") } }
+        let bodyPart: [String: Any] = ["mimeType": "text/html", "headers": [["name": "Content-ID", "value": "<body-html>"]], "body": ["data": Data("<p>LinkedIn-style body</p>".utf8).base64URL]]
+        let parsedBody = try GmailClient.parseMessage(["id": "mime", "payload": bodyPart])
+        check(parsedBody.html == "<p>LinkedIn-style body</p>" && parsedBody.attachments.isEmpty, "HTML with Content-ID is rendered as a body, not an image attachment")
+        var attached = bodyPart; attached["filename"] = "document.html"; attached["headers"] = [["name": "Content-Disposition", "value": "attachment; filename=document.html"]]
+        let parsedAttachment = try GmailClient.parseMessage(["id": "mime-file", "payload": attached])
+        check(parsedAttachment.html.isEmpty && parsedAttachment.attachments.count == 1, "An explicit HTML file attachment remains an attachment")
+        let rewritten = MessageHTML.cachedImageURLs("<img src='https://images.example/a.png'><a href='https://example.com'>Link</a><div style=\"background-image:url(https://images.example/b.png)\"></div>")
+        check(rewritten.contains("src='post-image://https/images.example/a.png'") && rewritten.contains("url(post-image://https/images.example/b.png)"), "Remote image and CSS background URLs use the shared cache")
+        check(rewritten.contains("href='https://example.com'"), "Image rewriting leaves external links unchanged")
+        check(MessageHTML.originalImageURL(URL(string: "post-image://https/images.example/a.png?x=1&amp;y=2")!)?.absoluteString == "https://images.example/a.png?x=1&y=2", "Cached image requests restore the original URL")
         let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [MockProtocol.self]
         let session = URLSession(configuration: config)
         let client = GmailClient(session: session, client: .init(clientID: "test.apps.googleusercontent.com", clientSecret: "test"), token: .init(access: "test-access", refresh: "test-refresh", expiry: Date().addingTimeInterval(3600)), restore: false)

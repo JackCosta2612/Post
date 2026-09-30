@@ -28,7 +28,7 @@ See [build and signing instructions](docs/build.md) for prerequisites, Keychain 
 - Conversations show incoming mail and sent replies in chronological order, with formatted bodies and per-message reply controls.
 - Shift-click, Command-click, and Shift-arrow selection. Bulk label, archive, and Trash without checkboxes.
 - Compose, reply, reply all, forward, attachments, autosaved drafts, and confirmed draft deletion.
-- Gmail search, labels, read status, stars, spam, reversible Trash, and Undo for local mail actions.
+- Search highlighting in the loaded list, labels, read status, stars, spam, reversible Trash, and Undo for local mail actions.
 - Local cache for offline reading. Embedded images resolve locally; external images are blocked by default.
 - Background checking every 60 seconds while running. The loading strip appears only for manual refresh.
 - Custom shortcuts update menus and on-screen hints.
