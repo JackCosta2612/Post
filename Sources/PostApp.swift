@@ -53,10 +53,8 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
     weak var store: MailStore?
     private var monitor: Any?
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if let iconURL = Bundle.main.url(forResource: "Post", withExtension: "icns"),
-           let icon = NSImage(contentsOf: iconURL) {
-            NSApp.applicationIconImage = icon
-        }
+        // Let macOS select the catalog's light, dark, and Liquid Glass variants.
+        // Assigning a static NSImage here overrides that system appearance handling.
         UNUserNotificationCenter.current().delegate = self
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
