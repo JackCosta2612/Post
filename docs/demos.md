@@ -25,6 +25,6 @@ With FFmpeg and Python Pillow installed, frame the capture and add action indica
 python3 scripts/edit-demo.py /tmp/post-demo.mp4 /tmp/timeline.json /tmp/post-demo-edited.mp4
 ```
 
-The timeline has a `start` Unix timestamp and an `events` array. Each event has an `at` timestamp, a `kind` (`click`, `key`, `typing`, or `end`), an optional `point` in capture pixels, and a `label` for the keyboard indicator. Use times from the actual interaction. Review the entire edited video before publishing it.
+The timeline has a `start` Unix timestamp and an `events` array. Each event has an `at` timestamp, a `kind` (`click`, `key`, `typing`, `typingEnd`, or `end`), a `point` in capture pixels or `null`, and a `label` for the keyboard indicator. Include one `typing` event and one `typingEnd` event to delimit the reply entry. Use times from the actual interaction. Review the entire edited video before publishing it.
 
 The older `mailbox-demo.mp4` and `dark-mode-demo.mp4` files are captioned app captures, retained as earlier documentation examples.
