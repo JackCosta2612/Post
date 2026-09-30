@@ -64,6 +64,7 @@ final class MailStore: ObservableObject {
         return (values.isEmpty ? [selected] : values).sorted { $0.date == $1.date ? $0.id < $1.id : $0.date < $1.date }
     }
     var folder: MailFolder { folders.first { $0.id == folderID } ?? MailFolder.defaults[0] }
+    var awaitingFolderList: Bool { connected && folderSnapshots[folderCacheKey] == nil }
     var folderCacheKey: String { folder.id + "|" + (folder.id == "primary" ? primaryQuery : folder.query) }
     func restoreFolderSnapshot() {
         guard connected else { currentRemoteIDs = nil; nextPage = nil; return }

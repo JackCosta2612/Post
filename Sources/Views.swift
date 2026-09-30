@@ -206,8 +206,10 @@ struct MailWindow: View {
                         }.onChange(of: store.selectedID) { _, id in if let id { withAnimation { proxy.scrollTo(id) } } }
                     }
                 }
+            } else if store.awaitingFolderList {
+                Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if store.visibleMessages.isEmpty {
-                VStack(spacing: 12) { Image(systemName: store.search.isEmpty ? "tray" : "magnifyingglass").font(.system(size: 28)).foregroundStyle(.tertiary); Text(store.busy ? "Loading mail…" : store.search.isEmpty ? "No messages here" : "No matching messages").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 12) { Image(systemName: store.search.isEmpty ? "tray" : "magnifyingglass").font(.system(size: 28)).foregroundStyle(.tertiary); Text(store.search.isEmpty ? "No messages here" : "No matching messages").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView { LazyVStack(spacing: 0) { ForEach(store.visibleMessages) { message in MessageRow(message: message).id(message.id) }; if store.nextPage != nil { Button("Load more messages") { Task { await store.refresh(more: true) } }.padding(20).disabled(store.busy) } } }
