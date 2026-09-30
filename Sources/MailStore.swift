@@ -320,6 +320,9 @@ final class MailStore: ObservableObject {
             else if !remaining.contains(selectedID ?? "") { selectedID = visibleMessages.first { remaining.contains($0.id) }?.id; selectionAnchor = selectedID }
         } else if advance { let list = visibleMessages; select(list.isEmpty ? nil : list[min(index, list.count - 1)].id) }
     }
+    func moveSelectedToInbox() {
+        actOnSelected(add: ["INBOX"], remove: ["TRASH", "SPAM"], advance: true)
+    }
     func undo() {
         guard let snapshots = lastUndo else { return }
         for (id, labels) in snapshots {

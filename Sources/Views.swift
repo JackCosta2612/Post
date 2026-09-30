@@ -248,6 +248,9 @@ struct MessageRow: View {
         }.buttonStyle(PostButtonStyle(inset: 0, selected: store.actionIDs.contains(message.id))).accessibilityValue(store.bulkMode && store.bulkIDs.contains(message.id) ? "Selected for bulk actions" : !store.bulkMode && store.selectedID == message.id ? "Open message" : "").padding(.horizontal, 14).padding(.vertical, 3)
         .contextMenu {
             if !store.bulkMode { Button("Reply") { store.select(message.id); store.newCompose(kind: "reply") } }
+            if message.labels.contains("TRASH") || message.labels.contains("SPAM") {
+                Button("Move to Inbox") { store.prepareContextSelection(message.id); store.moveSelectedToInbox() }
+            }
             Button("Apply label…") { store.prepareContextSelection(message.id); store.showLabels = true }
             Button("Archive") { store.prepareContextSelection(message.id); store.actOnSelected(add: [], remove: ["INBOX"], advance: true) }
             Button("Move to Trash") { store.prepareContextSelection(message.id); store.actOnSelected(add: ["TRASH"], remove: ["INBOX"], advance: true) }

@@ -13,6 +13,16 @@ struct BehaviorTests {
         check(MessageQuote.split("Unquoted message").quote == nil, "Unquoted content stays visible")
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("PostTests-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
+        let recovery = MailStore(directory: directory.appendingPathComponent("Recovery"))
+        recovery.preferences.markRead = false
+        var recoverable = recovery.messages[0]
+        recoverable.labels = ["TRASH", "UNREAD"]
+        recovery.messages = [recoverable]; recovery.folderID = "TRASH"; recovery.select(recoverable.id)
+        recovery.moveSelectedToInbox()
+        check(recovery.messages[0].labels == ["INBOX", "UNREAD"], "Move from Trash restores Inbox and preserves unread state")
+        recovery.messages[0].labels = ["SPAM", "UNREAD"]; recovery.folderID = "SPAM"; recovery.select(recoverable.id)
+        recovery.moveSelectedToInbox()
+        check(recovery.messages[0].labels == ["INBOX", "UNREAD"], "Move from Spam restores Inbox and removes Spam")
         let store = MailStore(directory: directory)
         check(store.visibleMessages.count == 5, "Primary excludes confirmations and rejections")
         check(store.folders.first { $0.id == "primary" }?.unreadCount == 4, "Unread badges count unread messages")
