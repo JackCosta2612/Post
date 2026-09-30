@@ -322,6 +322,8 @@ struct ConversationMessage: View {
     @LocalState private var allowImages = false
     @LocalState private var originalColors = false
     @LocalState private var showPlainQuote = false
+    @LocalState private var htmlReady = false
+    private var ready: Bool { message.html.isEmpty || plain || htmlReady }
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top, spacing: 12) {
@@ -343,7 +345,7 @@ struct ConversationMessage: View {
                 if !allowImages && !store.preferences.remoteImages {
                     HStack { Text("Remote images are blocked").font(.system(size: 11)).foregroundStyle(.secondary); Spacer(); Button("Load images") { allowImages = true }.controlSize(.small) }
                 }
-                HTMLMessage(html: message.html, remoteImages: allowImages || store.preferences.remoteImages, originalColors: originalColors, foldQuotes: true)
+                HTMLMessage(html: message.html, remoteImages: allowImages || store.preferences.remoteImages, originalColors: originalColors, foldQuotes: true, onReady: { htmlReady = $0 })
                     .transaction { $0.animation = nil }.padding(.horizontal, 6).frame(minHeight: 100).clipShape(RoundedRectangle(cornerRadius: 7))
             } else {
                 let parts = MessageQuote.split(message.body)
@@ -362,6 +364,9 @@ struct ConversationMessage: View {
             }
             Button("Reply") { store.newCompose(kind: "reply", replyingTo: message) }.font(.system(size: 12)).buttonStyle(PostButtonStyle())
         }
+        .opacity(ready ? 1 : 0)
+        .allowsHitTesting(ready).accessibilityHidden(!ready)
+        .transaction { $0.animation = nil }
     }
 }
 
@@ -392,16 +397,33 @@ struct HTMLMessage: NSViewRepresentable {
     let remoteImages: Bool
     var originalColors = false
     var foldQuotes = false
+    var onReady: ((Bool) -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
     @LocalState private var height: CGFloat = 100
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    // Keep a bounded set of live documents, including their decoded images and layout.
+    private static var rendered: [(key: String, view: WKWebView, coordinator: Coordinator)] = []
+    private var renderKey: String { html + String(remoteImages) + String(colorScheme == .dark) + String(originalColors) + String(foldQuotes) }
+    func makeCoordinator() -> Coordinator {
+        if let entry = Self.rendered.first(where: { $0.key == renderKey && $0.view.superview == nil }) { return entry.coordinator }
+        return Coordinator()
+    }
+    static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
+        coordinator.setHeight = nil
+        coordinator.onReady = nil
+    }
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: WKWebView, context: Context) -> CGSize? {
-        CGSize(width: proposal.width ?? 600, height: height)
+        CGSize(width: proposal.width ?? 600, height: context.coordinator.measuredHeight ?? height)
     }
     func makeNSView(context: Context) -> WKWebView {
+        if let index = Self.rendered.firstIndex(where: { $0.key == renderKey && $0.coordinator === context.coordinator }) {
+            let entry = Self.rendered.remove(at: index)
+            Self.rendered.append(entry)
+            return entry.view
+        }
         let config = WKWebViewConfiguration()
         let script = WKUserScript(source: """
-        const measure = () => window.webkit.messageHandlers.postHeight.postMessage(document.body.getBoundingClientRect().height);
+        const generation = document.documentElement.dataset.postRender;
+        const measure = () => window.webkit.messageHandlers.postHeight.postMessage({ generation, height: document.body.getBoundingClientRect().height });
         if (\(foldQuotes)) {
             const candidates = [...document.querySelectorAll('.gmail_quote, .yahoo_quoted, blockquote, #divRplyFwdMsg')];
             candidates.filter(node => !candidates.some(other => other !== node && other.contains(node))).forEach(node => {
@@ -415,36 +437,85 @@ struct HTMLMessage: NSViewRepresentable {
             });
         }
         new ResizeObserver(measure).observe(document.body); measure();
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            window.webkit.messageHandlers.postReady.postMessage({ generation, height: document.body.getBoundingClientRect().height });
+        }));
         """, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
         config.userContentController.addUserScript(script)
         config.userContentController.add(context.coordinator, name: "postHeight")
+        config.userContentController.add(context.coordinator, name: "postReady")
         config.websiteDataStore = Self.webDataStore;
         config.setURLSchemeHandler(PostImageLoader.shared, forURLScheme: "post-image"); config.defaultWebpagePreferences.allowsContentJavaScript = false
-        let view = ThreadWebView(frame: .zero, configuration: config); view.navigationDelegate = context.coordinator; view.setValue(false, forKey: "drawsBackground"); return view
+        let view = ThreadWebView(frame: .zero, configuration: config); view.navigationDelegate = context.coordinator; view.setValue(false, forKey: "drawsBackground")
+        Self.rendered.append((renderKey, view, context.coordinator))
+        while Self.rendered.count > 40 {
+            guard let index = Self.rendered.firstIndex(where: { $0.view.superview == nil && $0.view !== view }) else { break }
+            let removed = Self.rendered.remove(at: index)
+            removed.view.configuration.userContentController.removeScriptMessageHandler(forName: "postHeight")
+            removed.view.configuration.userContentController.removeScriptMessageHandler(forName: "postReady")
+            removed.view.stopLoading()
+        }
+        return view
     }
     func updateNSView(_ view: WKWebView, context: Context) {
+        context.coordinator.onReady = onReady
         context.coordinator.setHeight = { value in if abs(height - value) > 1 { height = value } }
-        let signature = html + String(remoteImages) + String(colorScheme == .dark) + String(originalColors) + String(foldQuotes)
-        guard context.coordinator.signature != signature else { return }
+        let signature = renderKey
+        guard context.coordinator.signature != signature else {
+            let coordinator = context.coordinator
+            DispatchQueue.main.async {
+                if let measured = coordinator.measuredHeight { coordinator.setHeight?(measured) }
+                coordinator.onReady?(coordinator.isReady)
+            }
+            return
+        }
         context.coordinator.signature = signature
+        context.coordinator.isReady = false
+        context.coordinator.measuredHeight = nil
+        if let index = Self.rendered.firstIndex(where: { $0.view === view }) { Self.rendered[index].key = signature }
+        let generation = UUID().uuidString
+        context.coordinator.generation = generation
+        DispatchQueue.main.async { [weak coordinator = context.coordinator] in
+            guard coordinator?.generation == generation else { return }
+            coordinator?.onReady?(false)
+        }
         let images = remoteImages ? "post-image: data: cid:" : "data: cid:"
         let renderedHTML = remoteImages ? MessageHTML.cachedImageURLs(html) : html
         let dark = colorScheme == .dark && !originalColors
         let colors = originalColors ? "body{background:transparent;color:#242a34}" : "body{background:transparent!important;color:\(dark ? "#e5eaf1" : "#242a34")!important}p,span,td,div,li,table{color:inherit!important;background-color:transparent!important}a,a span{color:\(dark ? "#9ecafa" : "#176edc")!important}"
-        let document = "<!doctype html><html><head><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; img-src \(images); style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'\"><style>body{font:15px -apple-system,BlinkMacSystemFont,sans-serif;color:#242a34;margin:0;padding:12px 0;box-sizing:border-box;line-height:1.65;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}a{color:#176edc}html{overflow:hidden}details.post-quote{margin-top:14px}details.post-quote>summary{cursor:pointer;font-size:12px;color:#7d8b9c;user-select:none}details.post-quote[open]>summary{margin-bottom:12px}\(colors)</style></head><body>\(renderedHTML)</body></html>"
-        view.loadHTMLString(document, baseURL: nil)
+        let document = "<!doctype html><html data-post-render='\(generation)'><head><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; img-src \(images); style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'\"><style>body{font:15px -apple-system,BlinkMacSystemFont,sans-serif;color:#242a34;margin:0;padding:12px 0;box-sizing:border-box;line-height:1.65;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}a{color:#176edc}html{overflow:hidden}details.post-quote{margin-top:14px}details.post-quote>summary{cursor:pointer;font-size:12px;color:#7d8b9c;user-select:none}details.post-quote[open]>summary{margin-bottom:12px}\(colors)</style></head><body>\(renderedHTML)</body></html>"
+        context.coordinator.navigation = view.loadHTMLString(document, baseURL: nil)
     }
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var signature = ""
+        var measuredHeight: CGFloat?
+        var isReady = false
         var setHeight: ((CGFloat) -> Void)?
+        var onReady: ((Bool) -> Void)?
+        var generation = ""
+        var navigation: WKNavigation?
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard message.frameInfo.isMainFrame, let number = message.body as? NSNumber else { return }
+            guard message.frameInfo.isMainFrame, let payload = message.body as? [String: Any],
+                  let token = payload["generation"] as? String, token == generation,
+                  let number = payload["height"] as? NSNumber else { return }
             let value = min(max(CGFloat(number.doubleValue), 100), 30000)
-            DispatchQueue.main.async { self.setHeight?(value) }
+            let ready = message.name == "postReady"
+            DispatchQueue.main.async {
+                guard self.generation == token else { return }
+                self.measuredHeight = value
+                self.setHeight?(value)
+                if ready { self.isReady = true; self.onReady?(true) }
+            }
         }
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard navigation === self.navigation else { return }
+            let token = generation
             webView.evaluateJavaScript("document.body.getBoundingClientRect().height") { value, _ in
-                if let number = value as? NSNumber { self.setHeight?(min(max(CGFloat(number.doubleValue), 100), 30000)) }
+                guard self.generation == token, let number = value as? NSNumber else { return }
+                self.measuredHeight = min(max(CGFloat(number.doubleValue), 100), 30000)
+                self.setHeight?(self.measuredHeight!)
+                self.isReady = true
+                self.onReady?(true)
             }
         }
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
