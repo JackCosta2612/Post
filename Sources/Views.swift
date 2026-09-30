@@ -274,6 +274,20 @@ struct MessageRow: View {
 struct ReadingPane: View {
     @EnvironmentObject var store: MailStore
     @LocalState private var plain = false
+    @LocalState private var centeringID: String?
+    @LocalState private var selectedBodyReady = false
+    @LocalState private var centerTask: Task<Void, Never>?
+    private func settleCenter(_ proxy: ScrollViewProxy, readyID: String) {
+        guard let target = centeringID, target == store.selectedID else { return }
+        if readyID == target { selectedBodyReady = true }
+        centerTask?.cancel()
+        centerTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            guard !Task.isCancelled, centeringID == target, store.selectedID == target, selectedBodyReady else { return }
+            proxy.scrollTo(target, anchor: .center)
+            centeringID = nil
+        }
+    }
     var body: some View {
         Group {
             if let selected = store.selected {
@@ -298,15 +312,26 @@ struct ReadingPane: View {
                             LazyVStack(alignment: .leading, spacing: 16) {
                                 Text(selected.subject).font(.system(size: 25, weight: .semibold)).textSelection(.enabled).padding(.bottom, 8)
                                 ForEach(store.threadMessages) { message in
-                                    ConversationMessage(message: message, plain: plain)
+                                    ConversationMessage(message: message, plain: plain, onLayoutReady: { settleCenter(proxy, readyID: message.id) })
                                         .id(message.id)
                                         .padding(18)
                                         .background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 12))
                                 }
                             }.padding(24).frame(maxWidth: .infinity, alignment: .leading).id("thread-top")
                         }
-                        .onAppear { proxy.scrollTo("thread-top", anchor: .top) }
-                        .onChange(of: store.selectedID) { _, _ in proxy.scrollTo("thread-top", anchor: .top) }
+                        .task(id: selected.id) {
+                            centerTask?.cancel(); centeringID = selected.id; selectedBodyReady = false
+                            proxy.scrollTo(selected.id, anchor: .center)
+                            await Task.yield()
+                            guard !Task.isCancelled, store.selectedID == selected.id else { return }
+                            proxy.scrollTo(selected.id, anchor: .center)
+                        }
+                        .onChange(of: store.threadMessages.map(\.id)) { _, _ in
+                            centeringID = selected.id
+                            proxy.scrollTo(selected.id, anchor: .center)
+                            settleCenter(proxy, readyID: selected.id)
+                        }
+                        .onDisappear { centerTask?.cancel() }
                         .id(selected.threadID)
                     }
                 }
@@ -319,6 +344,7 @@ struct ConversationMessage: View {
     @EnvironmentObject var store: MailStore
     let message: MailMessage
     let plain: Bool
+    var onLayoutReady: (() -> Void)? = nil
     @LocalState private var allowImages = false
     @LocalState private var originalColors = false
     @LocalState private var showPlainQuote = false
@@ -364,6 +390,8 @@ struct ConversationMessage: View {
             }
             Button("Reply") { store.newCompose(kind: "reply", replyingTo: message) }.font(.system(size: 12)).buttonStyle(PostButtonStyle())
         }
+        .onAppear { if ready { onLayoutReady?() } }
+        .onChange(of: htmlReady) { _, value in if value { onLayoutReady?() } }
         .opacity(ready ? 1 : 0)
         .allowsHitTesting(ready).accessibilityHidden(!ready)
         .transaction { $0.animation = nil }
