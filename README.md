@@ -67,4 +67,4 @@ Post is an early client under active development. It supports one account at a t
 
 Tests use fictional data and simulated Gmail responses. The [contributing guide](CONTRIBUTING.md) describes privacy-safe bug reports and demo builds. MIT licensed.
 
-Thread navigation opens at the message selected in the list, centering it within the conversation when the available scroll range allows. Quoted replies stay collapsed until expanded.
+Thread navigation opens at the message selected in the list, aligning its beginning to the top of the conversation when the available scroll range allows. Quoted replies stay collapsed until expanded.

@@ -284,7 +284,7 @@ struct ReadingPane: View {
         centerTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 150_000_000)
             guard !Task.isCancelled, centeringID == target, store.selectedID == target, selectedBodyReady else { return }
-            proxy.scrollTo(target, anchor: .center)
+            proxy.scrollTo(target, anchor: .top)
             centeringID = nil
         }
     }
@@ -321,14 +321,14 @@ struct ReadingPane: View {
                         }
                         .task(id: selected.id) {
                             centerTask?.cancel(); centeringID = selected.id; selectedBodyReady = false
-                            proxy.scrollTo(selected.id, anchor: .center)
+                            proxy.scrollTo(selected.id, anchor: .top)
                             await Task.yield()
                             guard !Task.isCancelled, store.selectedID == selected.id else { return }
-                            proxy.scrollTo(selected.id, anchor: .center)
+                            proxy.scrollTo(selected.id, anchor: .top)
                         }
                         .onChange(of: store.threadMessages.map(\.id)) { _, _ in
                             centeringID = selected.id
-                            proxy.scrollTo(selected.id, anchor: .center)
+                            proxy.scrollTo(selected.id, anchor: .top)
                             settleCenter(proxy, readyID: selected.id)
                         }
                         .onDisappear { centerTask?.cancel() }
