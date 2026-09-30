@@ -33,6 +33,7 @@ See [build and signing instructions](docs/build.md) for prerequisites, Keychain 
 - Shift-click, Command-click, and Shift-arrow selection. Bulk label, archive, and Trash without checkboxes.
 - Compose, reply, reply all, forward, attachments, autosaved drafts, and confirmed draft deletion.
 - Search filtering and highlighting in the loaded list, labels, read status, stars, spam, reversible Trash, and Undo for local mail actions.
+- Saved lists for each folder show immediately on return visits and refresh quietly.
 - Local cache for offline reading. Embedded images resolve locally; external images are blocked by default.
 - Background checking every 60 seconds while running. The loading strip appears only for manual refresh.
 - New-mail notifications for Primary or All mail, with optional sound and sender/subject previews.

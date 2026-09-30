@@ -161,6 +161,11 @@ struct PendingChange: Codable, Identifiable {
     var remove: [String]
 }
 
+struct FolderSnapshot: Codable {
+    var ids: Set<String>
+    var nextPage: String?
+}
+
 struct MailCache: Codable {
     var messages: [MailMessage] = []
     var folders: [MailFolder] = []
@@ -170,6 +175,7 @@ struct MailCache: Codable {
     var account: String?
     var historyID: String? = nil
     var preferences = MailPreferences()
+    var folderSnapshots: [String: FolderSnapshot]? = nil
 }
 
 extension Data {
