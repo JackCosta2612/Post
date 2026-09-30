@@ -2,12 +2,11 @@
 
 A native SwiftUI email client for macOS and one Gmail account. Labels, keyboard navigation, and a quiet three-pane layout are the focus.
 
-https://github.com/user-attachments/assets/46e4cc4f-9246-4ed0-a20e-9e83abb6201c
+https://github.com/user-attachments/assets/a79a26d5-4c8a-45de-a7da-66d23edb9db2
 
-A 1:46 walkthrough with fictional mail. [Download the video](docs/media/post-demo.mp4) or read the [recording notes](docs/demos.md).
+[Download the preview](docs/media/post-demo.mp4)
 
-![Post in light mode](docs/media/light.png)
-![Post in dark mode](docs/media/dark.png)
+![Post in light and dark mode](docs/media/appearance.png)
 
 ## Try it
 
@@ -30,12 +29,13 @@ See [build and signing instructions](docs/build.md) for prerequisites, Keychain 
 
 - Light, Dark, or System appearance. Collapsible sidebar with unread or total counts.
 - Primary shows inbox mail except Promotions and a label named Newsletters. Gmail's own Primary category is available in settings.
-- Conversations show incoming mail and sent replies in chronological order, with formatted bodies and per-message reply controls.
+- Conversations show incoming mail and sent replies in chronological order. They open at the selected message, with quoted replies collapsed and a reply control on each message.
 - Shift-click, Command-click, and Shift-arrow selection. Bulk label, archive, and Trash without checkboxes.
 - Compose, reply, reply all, forward, attachments, autosaved drafts, and confirmed draft deletion.
 - Search filtering and highlighting in the loaded list, labels, read status, stars, spam, reversible Trash, and Undo for local mail actions.
 - Local cache for offline reading. Embedded images resolve locally; external images are blocked by default.
 - Background checking every 60 seconds while running. The loading strip appears only for manual refresh.
+- New-mail notifications for Primary or All mail, with optional sound and sender/subject previews.
 - Custom shortcuts update menus and on-screen hints.
 
 ## Default keys
@@ -69,6 +69,4 @@ Post is an early client under active development. It supports one account at a t
 ./build.sh
 ```
 
-Tests use fictional data and simulated Gmail responses. The [contributing guide](CONTRIBUTING.md) describes privacy-safe bug reports and demo builds. MIT licensed.
-
-Thread navigation opens at the message selected in the list, aligning its beginning to the top of the conversation when the available scroll range allows. Quoted replies stay collapsed until expanded.
+Tests use fictional data and simulated Gmail responses. The [contributing guide](CONTRIBUTING.md) describes bug reports and local testing. MIT licensed.
