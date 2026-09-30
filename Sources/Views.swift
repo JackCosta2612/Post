@@ -276,6 +276,10 @@ struct ReadingPane: View {
     @LocalState private var plain = false
     @LocalState private var centeringID: String?
     @LocalState private var selectedBodyReady = false
+    @LocalState private var positionedID: String?
+    private var scrollTarget: String {
+        store.threadMessages.first?.id == store.selectedID ? "thread-top" : (store.selectedID ?? "thread-top")
+    }
     @LocalState private var centerTask: Task<Void, Never>?
     private func settleCenter(_ proxy: ScrollViewProxy, readyID: String) {
         guard let target = centeringID, target == store.selectedID else { return }
@@ -284,7 +288,10 @@ struct ReadingPane: View {
         centerTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 150_000_000)
             guard !Task.isCancelled, centeringID == target, store.selectedID == target, selectedBodyReady else { return }
-            proxy.scrollTo(target, anchor: .top)
+            proxy.scrollTo(scrollTarget, anchor: .top)
+            await Task.yield()
+            guard !Task.isCancelled, store.selectedID == target else { return }
+            positionedID = target
             centeringID = nil
         }
     }
@@ -319,20 +326,27 @@ struct ReadingPane: View {
                                 }
                             }.padding(24).frame(maxWidth: .infinity, alignment: .leading).id("thread-top")
                         }
+                        .opacity(store.threadMessages.count <= 1 || positionedID == selected.id ? 1 : 0)
                         .task(id: selected.id) {
                             centerTask?.cancel(); centeringID = selected.id; selectedBodyReady = false
-                            proxy.scrollTo(selected.id, anchor: .top)
+                            if store.threadMessages.count <= 1 {
+                                centeringID = nil; positionedID = selected.id
+                                proxy.scrollTo("thread-top", anchor: .top)
+                                return
+                            }
+                            proxy.scrollTo(scrollTarget, anchor: .top)
                             await Task.yield()
                             guard !Task.isCancelled, store.selectedID == selected.id else { return }
-                            proxy.scrollTo(selected.id, anchor: .top)
+                            proxy.scrollTo(scrollTarget, anchor: .top)
                         }
                         .onChange(of: store.threadMessages.map(\.id)) { _, _ in
+                            guard store.threadMessages.count > 1 else { return }
                             centeringID = selected.id
-                            proxy.scrollTo(selected.id, anchor: .top)
+                            proxy.scrollTo(scrollTarget, anchor: .top)
                             settleCenter(proxy, readyID: selected.id)
                         }
                         .onDisappear { centerTask?.cancel() }
-                        .id(selected.threadID)
+                        .id(selected.id)
                     }
                 }
             }
