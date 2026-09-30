@@ -391,7 +391,20 @@ final class ThreadWebView: WKWebView {
     deinit { if let wheelMonitor { NSEvent.removeMonitor(wheelMonitor) } }
 }
 
-struct HTMLMessage: NSViewRepresentable {
+struct HTMLMessage: View {
+    let html: String
+    let remoteImages: Bool
+    var originalColors = false
+    var foldQuotes = false
+    var onReady: ((Bool) -> Void)? = nil
+    @LocalState private var height: CGFloat = 100
+    var body: some View {
+        HTMLDocument(html: html, remoteImages: remoteImages, originalColors: originalColors, foldQuotes: foldQuotes, onReady: onReady, height: $height)
+            .frame(height: height)
+    }
+}
+
+struct HTMLDocument: NSViewRepresentable {
     static let webDataStore = WKWebsiteDataStore.nonPersistent()
     let html: String
     let remoteImages: Bool
@@ -399,7 +412,7 @@ struct HTMLMessage: NSViewRepresentable {
     var foldQuotes = false
     var onReady: ((Bool) -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
-    @LocalState private var height: CGFloat = 100
+    @Binding var height: CGFloat
     // Keep a bounded set of live documents, including their decoded images and layout.
     private static var rendered: [(key: String, view: WKWebView, coordinator: Coordinator)] = []
     private var renderKey: String { html + String(remoteImages) + String(colorScheme == .dark) + String(originalColors) + String(foldQuotes) }
@@ -423,7 +436,23 @@ struct HTMLMessage: NSViewRepresentable {
         let config = WKWebViewConfiguration()
         let script = WKUserScript(source: """
         const generation = document.documentElement.dataset.postRender;
-        const measure = () => window.webkit.messageHandlers.postHeight.postMessage({ generation, height: document.body.getBoundingClientRect().height });
+        // Measure content independently of WebKit's viewport, which can retain an old height.
+        const content = document.createElement('div'); content.id = 'post-mail-content';
+        content.style.cssText = 'display:flow-root!important;height:auto!important;min-height:0!important;max-height:none!important;padding:12px 0!important;box-sizing:border-box!important';
+        while (document.body.firstChild) content.append(document.body.firstChild);
+        document.body.append(content);
+        document.body.style.setProperty('height', 'auto', 'important');
+        document.body.style.setProperty('min-height', '0', 'important');
+        document.body.style.setProperty('padding', '0', 'important');
+        const measure = () => window.webkit.messageHandlers.postHeight.postMessage({ generation, height: content.getBoundingClientRect().height });
+        const blank = node => node.nodeType === Node.TEXT_NODE ? !node.textContent.trim() :
+            node.nodeType === Node.ELEMENT_NODE && (node.tagName === 'BR' ||
+            (!node.textContent.trim() && !node.querySelector('img,svg,table,hr,input,details') && !node.matches('img,svg,table,hr,input,details')));
+        const trimEnd = node => {
+            while (node.lastChild && blank(node.lastChild)) node.lastChild.remove();
+            const last = node.lastElementChild;
+            if (last && ['DIV','SECTION'].includes(last.tagName)) trimEnd(last);
+        };
         if (\(foldQuotes)) {
             const candidates = [...document.querySelectorAll('.gmail_quote, .yahoo_quoted, blockquote, #divRplyFwdMsg')];
             candidates.filter(node => !candidates.some(other => other !== node && other.contains(node))).forEach(node => {
@@ -433,12 +462,14 @@ struct HTMLMessage: NSViewRepresentable {
                 if (node.id === 'divRplyFwdMsg') {
                     while (details.nextSibling) details.append(details.nextSibling);
                 } else { details.append(node); }
+                while (details.previousSibling && blank(details.previousSibling)) details.previousSibling.remove();
                 details.addEventListener('toggle', measure);
             });
         }
-        new ResizeObserver(measure).observe(document.body); measure();
+        trimEnd(content);
+        new ResizeObserver(measure).observe(content); measure();
         requestAnimationFrame(() => requestAnimationFrame(() => {
-            window.webkit.messageHandlers.postReady.postMessage({ generation, height: document.body.getBoundingClientRect().height });
+            window.webkit.messageHandlers.postReady.postMessage({ generation, height: content.getBoundingClientRect().height });
         }));
         """, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
         config.userContentController.addUserScript(script)
@@ -510,7 +541,7 @@ struct HTMLMessage: NSViewRepresentable {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             guard navigation === self.navigation else { return }
             let token = generation
-            webView.evaluateJavaScript("document.body.getBoundingClientRect().height") { value, _ in
+            webView.evaluateJavaScript("document.getElementById('post-mail-content')?.getBoundingClientRect().height") { value, _ in
                 guard self.generation == token, let number = value as? NSNumber else { return }
                 self.measuredHeight = min(max(CGFloat(number.doubleValue), 100), 30000)
                 self.setHeight?(self.measuredHeight!)
@@ -680,6 +711,11 @@ struct SettingsPane: View {
                     Text("Click an attachment to download it directly here. Existing files are kept; repeated names get a numbered suffix.").font(.system(size: 12)).foregroundStyle(.secondary)
                 } else if section == "Notifications" {
                     Toggle("Show new-mail notifications", isOn: $store.preferences.notifications).onChange(of: store.preferences.notifications) { _, value in if value { store.enableNotifications() } }
+                    Picker("Notify me about", selection: Binding(get: { store.preferences.notificationScope ?? "primary" }, set: { store.preferences.notificationScope = $0 })) {
+                        Text("Primary inbox only").tag("primary")
+                        Text("All mail").tag("all")
+                    }
+                    Text("Primary follows your Primary view setting. All mail includes Promotions, Newsletters, and other incoming mail, excluding Spam and Trash.").font(.system(size: 11)).foregroundStyle(.secondary)
                     Toggle("Play a sound", isOn: Binding(get: { store.preferences.notificationSound ?? true }, set: { store.preferences.notificationSound = $0 }))
                     Toggle("Show sender and subject", isOn: Binding(get: { store.preferences.notificationPreview ?? true }, set: { store.preferences.notificationPreview = $0 }))
                     Toggle("Show banners while Post is active", isOn: Binding(get: { store.preferences.notificationForeground ?? false }, set: { store.preferences.notificationForeground = $0 }))

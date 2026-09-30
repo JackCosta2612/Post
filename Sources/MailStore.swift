@@ -73,6 +73,11 @@ final class MailStore: ObservableObject {
         }
         return folder.contains(message)
     }
+    func notificationMatches(_ message: MailMessage) -> Bool {
+        guard message.unread, message.labels.isDisjoint(with: ["TRASH", "SPAM", "DRAFT", "SENT"]) else { return false }
+        if preferences.notificationScope == "all" { return true }
+        return contains(MailFolder.defaults[0], message)
+    }
     var visibleMessages: [MailMessage] {
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
         let values = messages.filter { message in
@@ -265,7 +270,7 @@ final class MailStore: ObservableObject {
                     do {
                         let (updates, deleted, newest) = try await gmail.changes(since: historyID, cachedIDs: Set(messages.map(\.id)))
                         for message in updates { threadFetched.removeValue(forKey: message.threadID) }
-                        arrivals = updates.filter { !oldIDs.contains($0.id) && $0.unread && $0.labels.contains("INBOX") && $0.date > (lastSync ?? Date()) }
+                        arrivals = updates.filter { !oldIDs.contains($0.id) && notificationMatches($0) && $0.date > (lastSync ?? Date()) }
                         merge(updates); messages.removeAll { deleted.contains($0.id) }; self.historyID = newest
                     } catch MailError.http(404, _) { self.historyID = nil; historyValid = false }
                 }
@@ -294,7 +299,7 @@ final class MailStore: ObservableObject {
                 if folderID == "DRAFT" { await loadDrafts() }
             }
             if preferences.notifications && !more && lastSync != nil {
-                let new = arrivals + incoming.filter { message in !oldIDs.contains(message.id) && message.unread && message.labels.contains("INBOX") && message.date > (lastSync ?? Date()) && !arrivals.contains(where: { $0.id == message.id }) }
+                let new = arrivals + incoming.filter { message in !oldIDs.contains(message.id) && notificationMatches(message) && message.date > (lastSync ?? Date()) && !arrivals.contains(where: { $0.id == message.id }) }
                 if let first = new.first { notify(first, count: new.count) }
             }
             lastSync = syncStartedAt; status = "Gmail is up to date"; persist()

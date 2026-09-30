@@ -119,6 +119,7 @@ struct MailPreferences: Codable {
     var primaryMode: String? = nil
     var appearance: String? = nil
     var downloadDirectory: String? = nil
+    var notificationScope: String? = nil
     var notificationSound: Bool? = nil
     var notificationPreview: Bool? = nil
     var notificationForeground: Bool? = nil

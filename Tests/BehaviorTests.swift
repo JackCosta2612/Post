@@ -21,6 +21,18 @@ struct BehaviorTests {
         let retainedDownload = try Data(contentsOf: firstDownload)
         check(retainedDownload == Data("first".utf8), "Quick downloads do not overwrite existing files")
         let recovery = MailStore(directory: directory.appendingPathComponent("Recovery"))
+        var notificationMail = recovery.messages[0]
+        notificationMail.labels = ["INBOX", "UNREAD", "CATEGORY_PROMOTIONS"]
+        check(!recovery.notificationMatches(notificationMail), "Primary notifications exclude Promotions")
+        notificationMail.labels = ["INBOX", "UNREAD", "CATEGORY_UPDATES"]
+        check(recovery.notificationMatches(notificationMail), "Wide Primary notifications include Updates")
+        recovery.preferences.notificationScope = "all"
+        notificationMail.labels = ["UNREAD", "CATEGORY_PROMOTIONS"]
+        check(recovery.notificationMatches(notificationMail), "All mail notifications include incoming mail outside Inbox")
+        notificationMail.labels = ["SPAM", "UNREAD"]
+        check(!recovery.notificationMatches(notificationMail), "All mail notifications exclude Spam")
+        notificationMail.labels = ["SENT", "UNREAD"]
+        check(!recovery.notificationMatches(notificationMail), "All mail notifications exclude Sent mail")
         recovery.preferences.markRead = false
         var recoverable = recovery.messages[0]
         recoverable.labels = ["TRASH", "UNREAD"]
