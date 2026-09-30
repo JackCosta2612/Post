@@ -44,3 +44,7 @@ The editable layered icon is `Post.icon`. Compiled `Resources/Assets.car` and `R
 ## Sharing with friends
 
 Share the repository URL and have each person build locally and follow the Gmail guide. Your local self-signed identity is not a Developer ID signature or Apple notarization. Building on each person's Mac avoids presenting your certificate as a public software-distribution identity.
+
+## Install in Applications
+
+After building, quit Post and run `./install.sh`. This copies the signed bundle to `/Applications/Post.app` and registers it with Launch Services. Launch that installed copy. Use the same signing certificate for future updates, rebuild, quit Post, and repeat the install command. Notification controls and a delivery test are in Settings → Notifications. Local notifications require macOS permission but do not require an Apple developer membership or a push-notification server.

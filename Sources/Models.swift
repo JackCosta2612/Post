@@ -118,6 +118,10 @@ struct MailPreferences: Codable {
     var signature = ""
     var primaryMode: String? = nil
     var appearance: String? = nil
+    var downloadDirectory: String? = nil
+    var notificationSound: Bool? = nil
+    var notificationPreview: Bool? = nil
+    var notificationForeground: Bool? = nil
 }
 
 struct ComposeDraft: Codable, Identifiable {

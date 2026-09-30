@@ -14,7 +14,8 @@ git clone https://github.com/JackCosta2612/Post.git
 cd Post
 ./setup-signing.sh
 ./build.sh
-open ../Post.app
+./install.sh
+open /Applications/Post.app
 ```
 
 The app starts with fictional sample mail until you connect Gmail. Follow the [Gmail setup guide](Setup.md) for your own Google Cloud project and Desktop OAuth client. Each person connects their own account; no shared OAuth credentials are bundled.
@@ -51,7 +52,7 @@ Typing keeps normal cursor and editing behavior. Escape after editing a reply of
 
 ## Data and limitations
 
-OAuth credentials stay in macOS Keychain. Cached messages, attachment bytes already downloaded, drafts, and preferences live in `~/Library/Application Support/Post/mail-cache.json`. The cache is local JSON, not a separately encrypted database. Remote attachment bytes are fetched when needed. Downloading an attachment asks where to save it. HTML runs without sender-provided JavaScript.
+OAuth credentials stay in macOS Keychain. Cached messages, attachment bytes already downloaded, drafts, and preferences live in `~/Library/Application Support/Post/mail-cache.json`. The cache is local JSON, not a separately encrypted database. Remote attachment bytes are fetched when needed. Attachment clicks download directly to Downloads, with a configurable destination in Settings. HTML runs without sender-provided JavaScript.
 
 Disconnecting removes the sign-in token but keeps cached mail. To remove local mail too, quit Post and remove its Application Support folder. Revoke the authorization in your Google account if you no longer use the app.
 

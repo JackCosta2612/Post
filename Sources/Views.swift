@@ -657,7 +657,7 @@ struct SettingsPane: View {
     @LocalState private var shortcutText: [String: String] = [:]
     var body: some View {
         HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 7) { Text("Settings").font(.system(size: 16, weight: .semibold)).padding(.bottom, 20); ForEach([("General", "gearshape"), ("Shortcuts", "keyboard"), ("Account", "person.crop.square")], id: \.0) { name, icon in Button { section = name } label: { Label(name, systemImage: icon).frame(maxWidth: .infinity, alignment: .leading).padding(10).background(section == name ? PostStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 6)) }.buttonStyle(PostButtonStyle()) }; Spacer(); Button("Done") { store.showSettings = false }.keyboardShortcut(.defaultAction) }.padding(20).frame(width: 190).background(PostStyle.sidebar)
+            VStack(alignment: .leading, spacing: 7) { Text("Settings").font(.system(size: 16, weight: .semibold)).padding(.bottom, 20); ForEach([("General", "gearshape"), ("Downloads", "arrow.down.square"), ("Notifications", "bell"), ("Shortcuts", "keyboard"), ("Account", "person.crop.square")], id: \.0) { name, icon in Button { section = name } label: { Label(name, systemImage: icon).frame(maxWidth: .infinity, alignment: .leading).padding(10).background(section == name ? PostStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 6)) }.buttonStyle(PostButtonStyle()) }; Spacer(); Button("Done") { store.showSettings = false }.keyboardShortcut(.defaultAction) }.padding(20).frame(width: 190).background(PostStyle.sidebar)
             Divider()
             VStack(alignment: .leading, spacing: 22) {
                 Text(section).font(.system(size: 25, weight: .semibold))
@@ -666,10 +666,27 @@ struct SettingsPane: View {
                     Divider()
                     Picker("Primary view", selection: Binding(get: { store.preferences.primaryMode ?? "wide" }, set: { store.preferences.primaryMode = $0; store.currentRemoteIDs = nil; store.select(nil); if store.connected { Task { await store.refresh() } } else { store.updateLocalCounts() } })) { Text("Gmail Primary category").tag("gmail"); Text("Inbox except Promotions and Newsletters").tag("wide") }
                     Toggle("Mark messages as read when opened", isOn: $store.preferences.markRead)
-                    Toggle("Show new-mail notifications", isOn: $store.preferences.notifications).onChange(of: store.preferences.notifications) { _, value in if value { store.enableNotifications() } }
                     Toggle("Load remote images automatically", isOn: $store.preferences.remoteImages)
                     Divider(); Text("Signature").fontWeight(.medium); TextEditor(text: $store.preferences.signature).font(.system(size: 12)).frame(height: 90).border(Color.gray.opacity(0.2))
                     Picker("Appearance", selection: Binding(get: { store.preferences.appearance ?? "system" }, set: { store.preferences.appearance = $0 })) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented)
+                } else if section == "Downloads" {
+                    Text("Attachment download location").fontWeight(.medium)
+                    Text(store.downloadDirectory.path).font(.system(size: 12)).foregroundStyle(.secondary).textSelection(.enabled)
+                    HStack {
+                        Button("Choose folder…") { store.chooseDownloadDirectory() }
+                        Button("Use Downloads") { store.preferences.downloadDirectory = nil }
+                        Button("Show in Finder") { NSWorkspace.shared.open(store.downloadDirectory) }
+                    }
+                    Text("Click an attachment to download it directly here. Existing files are kept; repeated names get a numbered suffix.").font(.system(size: 12)).foregroundStyle(.secondary)
+                } else if section == "Notifications" {
+                    Toggle("Show new-mail notifications", isOn: $store.preferences.notifications).onChange(of: store.preferences.notifications) { _, value in if value { store.enableNotifications() } }
+                    Toggle("Play a sound", isOn: Binding(get: { store.preferences.notificationSound ?? true }, set: { store.preferences.notificationSound = $0 }))
+                    Toggle("Show sender and subject", isOn: Binding(get: { store.preferences.notificationPreview ?? true }, set: { store.preferences.notificationPreview = $0 }))
+                    Toggle("Show banners while Post is active", isOn: Binding(get: { store.preferences.notificationForeground ?? false }, set: { store.preferences.notificationForeground = $0 }))
+                    if !store.notificationTestStatus.isEmpty { Text(store.notificationTestStatus).font(.system(size: 12)).foregroundStyle(.secondary) }
+                    Text(store.notificationStatus).font(.system(size: 12)).foregroundStyle(.secondary)
+                    HStack { Button("Send test notification") { store.testNotification() }; Button("Open macOS notification settings") { store.openNotificationSettings() } }
+                    Text("Post checks for new mail every minute while running. Notifications stop when you quit Post. macOS Focus and notification settings control banner delivery.").font(.system(size: 12)).foregroundStyle(.secondary)
                 } else if section == "Shortcuts" {
                     Text("Click Record, then press your shortcut. Changes update menus and hints immediately.").font(.system(size: 11)).foregroundStyle(.secondary)
                     ScrollView { VStack(spacing: 0) { ForEach(Shortcut.names, id: \.0) { action, name in
@@ -691,6 +708,8 @@ struct SettingsPane: View {
                 Spacer(minLength: 0)
             }.padding(30).frame(maxWidth: .infinity, alignment: .leading)
         }.animation(.easeInOut(duration: 0.2), value: section).buttonStyle(PostButtonStyle()).frame(width: 760, height: 600).background(PostStyle.background).preferredColorScheme(PostStyle.scheme(store.preferences.appearance))
+        .onAppear { store.refreshNotificationStatus() }
+        .onChange(of: section) { _, _ in store.refreshNotificationStatus() }
         .onDisappear { store.recordingShortcut = nil }
         .onChange(of: store.preferences.totalCounts) { _, _ in if store.connected { Task { await store.refresh() } } }
     }

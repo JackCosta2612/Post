@@ -43,7 +43,7 @@ Google's Testing status expires authorizations using Gmail scopes after seven da
 
 Post checks for changes every 60 seconds while it is open. Switching folders fetches their messages. Search filters the loaded list and highlights matches, including body matches shown in the snippet, without fetching new results from Gmail. Manual refresh shows the loading strip; background sync is quiet. Cached bodies are reused and requests are paced. Gmail quota errors cause a cooldown instead of repeated requests.
 
-The Google client and tokens are in macOS Keychain. Cached mail, preferences, and local drafts are in `~/Library/Application Support/Post/mail-cache.json`. Embedded image bytes are cached with mail after download. External images use a shared cache capped at 32 MB in memory and 128 MB on disk, and are loaded without cookies. External images are blocked by default and can be enabled per message or in settings. Attachments download on demand and can be saved to a location you choose. Post also keeps a recent set of up to 40 rendered email bodies in memory, reusing their HTML layout and decoded images when you return to them. Active thread bodies are retained until released. This render cache resets when Post quits; the saved mail and image caches remain on disk. First-time rendering leaves the body container blank until it is ready.
+The Google client and tokens are in macOS Keychain. Cached mail, preferences, and local drafts are in `~/Library/Application Support/Post/mail-cache.json`. Embedded image bytes are cached with mail after download. External images use a shared cache capped at 32 MB in memory and 128 MB on disk, and are loaded without cookies. External images are blocked by default and can be enabled per message or in settings. Attachments download on demand directly to macOS Downloads. Change the folder in Settings → Downloads. Repeated filenames receive a numbered suffix without replacing existing files. Post also keeps a recent set of up to 40 rendered email bodies in memory, reusing their HTML layout and decoded images when you return to them. Active thread bodies are retained until released. This render cache resets when Post quits; the saved mail and image caches remain on disk. First-time rendering leaves the body container blank until it is ready.
 
 ## Troubleshooting
 
@@ -58,3 +58,7 @@ The Google client and tokens are in macOS Keychain. Cached mail, preferences, an
 | Mail has the wrong colors in Dark mode | Use the message's menu → Use original email colors. |
 
 Disconnect removes Post's saved sign-in token but retains the local cache. To revoke server access too, remove Post from your Google account's connected apps.
+
+## Notifications
+
+Install Post in Applications using `./install.sh` after building and quitting Post. In Settings → Notifications, turn on new-mail notifications and allow the macOS permission prompt. Sound, sender/subject previews, and foreground banners can be changed independently. Use Send test notification to verify delivery, and Open macOS notification settings to adjust system permissions. Post polls Gmail every minute while running; it does not fetch mail or deliver new-mail notifications after quitting. Initial mailbox loading does not notify for old messages.

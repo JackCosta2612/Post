@@ -23,6 +23,9 @@ final class MailStore: ObservableObject {
     @Published var status = "Preview mail"
     @Published var connected = false
     @Published var hasClient = false
+    @Published var notificationStatus = "Not checked"
+    @Published var notificationTestStatus = ""
+    private var downloading: Set<String> = []
     @Published var showSettings = false
     @Published var showLabels = false
     @Published var draftToDelete: ComposeDraft?
@@ -249,8 +252,10 @@ final class MailStore: ObservableObject {
         guard !busy else { return }
         busy = true; manualRefreshing = manual
         defer { busy = false; manualRefreshing = false }
+        let syncStartedAt = Date()
         let generation = UUID(); refreshGeneration = generation
         var historyValid = historyID != nil
+        var arrivals: [MailMessage] = []
         let oldIDs = Set(messages.map(\.id)); let viewID = folderID
         if !silent { status = "Syncing Gmail…" }
         do {
@@ -260,6 +265,7 @@ final class MailStore: ObservableObject {
                     do {
                         let (updates, deleted, newest) = try await gmail.changes(since: historyID, cachedIDs: Set(messages.map(\.id)))
                         for message in updates { threadFetched.removeValue(forKey: message.threadID) }
+                        arrivals = updates.filter { !oldIDs.contains($0.id) && $0.unread && $0.labels.contains("INBOX") && $0.date > (lastSync ?? Date()) }
                         merge(updates); messages.removeAll { deleted.contains($0.id) }; self.historyID = newest
                     } catch MailError.http(404, _) { self.historyID = nil; historyValid = false }
                 }
@@ -287,11 +293,11 @@ final class MailStore: ObservableObject {
                 }
                 if folderID == "DRAFT" { await loadDrafts() }
             }
-            if silent && preferences.notifications {
-                let new = incoming.filter { !oldIDs.contains($0.id) && $0.unread && $0.labels.contains("INBOX") }
+            if preferences.notifications && !more && lastSync != nil {
+                let new = arrivals + incoming.filter { message in !oldIDs.contains(message.id) && message.unread && message.labels.contains("INBOX") && message.date > (lastSync ?? Date()) && !arrivals.contains(where: { $0.id == message.id }) }
                 if let first = new.first { notify(first, count: new.count) }
             }
-            lastSync = Date(); status = "Gmail is up to date"; persist()
+            lastSync = syncStartedAt; status = "Gmail is up to date"; persist()
         } catch {
             if !Task.isCancelled {
                 if case MailError.rateLimited = error { status = error.localizedDescription }
@@ -474,8 +480,35 @@ final class MailStore: ObservableObject {
             Task { do { let f = try await gmail.createLabel(clean); folders.insert(f, at: 1); persist() } catch { self.error = error.localizedDescription } }
         } else { folders.insert(.init(id: UUID().uuidString, name: clean, icon: "tag", query: "", isCustom: true), at: 1); persist() }
     }
+    var downloadDirectory: URL {
+        if let path = preferences.downloadDirectory { return URL(fileURLWithPath: path, isDirectory: true) }
+        return FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads", isDirectory: true)
+    }
+    func chooseDownloadDirectory() {
+        let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true; panel.allowsMultipleSelection = false; panel.directoryURL = downloadDirectory
+        if panel.runModal() == .OK, let url = panel.url { preferences.downloadDirectory = url.path }
+    }
+    nonisolated static func writeDownload(_ data: Data, name: String, directory: URL) throws -> URL {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var filename = URL(fileURLWithPath: name).lastPathComponent
+        if filename.isEmpty || filename == "." || filename == ".." { filename = "Attachment" }
+        let original = directory.appendingPathComponent(filename)
+        var url = original; var suffix = 2
+        while FileManager.default.fileExists(atPath: url.path) {
+            let stem = original.deletingPathExtension().lastPathComponent
+            let ext = original.pathExtension
+            url = directory.appendingPathComponent("\(stem) (\(suffix))" + (ext.isEmpty ? "" : ".\(ext)")); suffix += 1
+        }
+        try data.write(to: url, options: [.withoutOverwriting])
+        return url
+    }
     func download(_ attachment: MailAttachment, message: MailMessage) {
+        let key = message.id + ":" + attachment.id
+        guard downloading.insert(key).inserted else { return }
+        let destination = downloadDirectory
+        status = "Downloading \(attachment.name)…"
         Task {
+            defer { downloading.remove(key) }
             do {
                 let data: Data
                 if let cached = attachment.data { data = cached }
@@ -483,8 +516,8 @@ final class MailStore: ObservableObject {
                     guard connected else { throw MailError.message("Connect Gmail to download this attachment.") }; data = try await gmail.attachment(messageID: message.id, attachment: attachment)
                     if let m = messages.firstIndex(where: { $0.id == message.id }), let a = messages[m].attachments.firstIndex(where: { $0.id == attachment.id }) { messages[m].attachments[a].data = data; persist() }
                 }
-                let panel = NSSavePanel(); panel.nameFieldStringValue = attachment.name
-                if panel.runModal() == .OK, let url = panel.url { try data.write(to: url, options: .atomic) }
+                let url = try await Task.detached(priority: .userInitiated) { try Self.writeDownload(data, name: attachment.name, directory: destination) }.value
+                status = "Downloaded \(url.lastPathComponent) to \(destination.lastPathComponent)"
             } catch { self.error = error.localizedDescription }
         }
     }
@@ -495,12 +528,52 @@ final class MailStore: ObservableObject {
         }
         preferences.shortcuts[action] = value; return true
     }
+    func refreshNotificationStatus() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let text: String
+            switch settings.authorizationStatus {
+            case .authorized, .provisional: text = settings.alertSetting == .enabled ? "Allowed by macOS" : "Allowed, banners disabled in macOS"
+            case .denied: text = "Blocked in macOS. Open System Settings to allow notifications."
+            case .notDetermined: text = "Permission has not been requested"
+            default: text = "Unavailable"
+            }
+            Task { @MainActor in self.notificationStatus = text }
+        }
+    }
     func enableNotifications() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, error in
+            Task { @MainActor in
+                if let error { self.error = error.localizedDescription }
+                self.refreshNotificationStatus()
+            }
+        }
+    }
+    func openNotificationSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") { NSWorkspace.shared.open(url) }
+    }
+    func testNotification() {
+        Task {
+            do {
+                let center = UNUserNotificationCenter.current()
+                guard try await center.requestAuthorization(options: [.alert, .sound, .badge]) else { refreshNotificationStatus(); return }
+                let content = UNMutableNotificationContent(); content.title = "Post"; content.body = "Notifications are ready."
+                content.userInfo = ["test": true]
+                if preferences.notificationSound ?? true { content.sound = .default }
+                try await center.add(UNNotificationRequest(identifier: "Post-test", content: content, trigger: nil))
+                notificationTestStatus = "Test sent to macOS Notification Center."
+                refreshNotificationStatus()
+            } catch { self.error = error.localizedDescription }
+        }
     }
     private func notify(_ message: MailMessage, count: Int) {
-        let c = UNMutableNotificationContent(); c.title = count > 1 ? "\(count) new messages" : message.senderName; c.body = message.subject
-        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: message.id, content: c, trigger: nil))
+        let c = UNMutableNotificationContent()
+        c.title = preferences.notificationPreview ?? true ? (count > 1 ? "\(count) new messages" : message.senderName) : "Post"
+        c.body = preferences.notificationPreview ?? true ? message.subject : (count > 1 ? "You have \(count) new messages." : "You have a new message.")
+        if preferences.notificationSound ?? true { c.sound = .default }
+        c.userInfo = ["messageID": message.id]
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: message.id, content: c, trigger: nil)) { error in
+            if let error { Task { @MainActor in self.status = "Notification could not be delivered: \(error.localizedDescription)" } }
+        }
     }
     func perform(_ action: String) {
         switch action {

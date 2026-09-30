@@ -13,6 +13,13 @@ struct BehaviorTests {
         check(MessageQuote.split("Unquoted message").quote == nil, "Unquoted content stays visible")
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("PostTests-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
+        let downloads = directory.appendingPathComponent("Downloads")
+        let firstDownload = try MailStore.writeDownload(Data("first".utf8), name: "../../report.pdf", directory: downloads)
+        let secondDownload = try MailStore.writeDownload(Data("second".utf8), name: "report.pdf", directory: downloads)
+        check(firstDownload.lastPathComponent == "report.pdf" && firstDownload.deletingLastPathComponent().standardizedFileURL.path == downloads.standardizedFileURL.path, "Attachment filenames stay inside download directory")
+        check(secondDownload.lastPathComponent == "report (2).pdf", "Duplicate attachment names receive a suffix")
+        let retainedDownload = try Data(contentsOf: firstDownload)
+        check(retainedDownload == Data("first".utf8), "Quick downloads do not overwrite existing files")
         let recovery = MailStore(directory: directory.appendingPathComponent("Recovery"))
         recovery.preferences.markRead = false
         var recoverable = recovery.messages[0]

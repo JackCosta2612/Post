@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UserNotifications
 
 @main
 struct PostApp: App {
@@ -47,7 +48,7 @@ extension Shortcut {
 }
 
 @MainActor
-final class PostDelegate: NSObject, NSApplicationDelegate {
+final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     static var promptCount = 0
     weak var store: MailStore?
     private var monitor: Any?
@@ -56,11 +57,29 @@ final class PostDelegate: NSObject, NSApplicationDelegate {
            let icon = NSImage(contentsOf: iconURL) {
             NSApp.applicationIconImage = icon
         }
+        UNUserNotificationCenter.current().delegate = self
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in guard let self else { return event }; return self.handle(event) }
     }
     func connect(_ store: MailStore) { self.store = store }
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        Task { @MainActor in
+            let isTest = notification.request.content.userInfo["test"] as? Bool == true
+            completionHandler(isTest || (self.store?.preferences.notificationForeground ?? false) ? [.banner, .list, .sound] : [.list])
+        }
+    }
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        Task { @MainActor in
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.windows.first { $0.title == "Post" }?.makeKeyAndOrderFront(nil)
+            if let id = response.notification.request.content.userInfo["messageID"] as? String, let store = self.store {
+                store.chooseFolder("primary")
+                store.select(id)
+            }
+            completionHandler()
+        }
+    }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationWillTerminate(_ notification: Notification) { store?.persist(); store?.flushCache(); if let monitor { NSEvent.removeMonitor(monitor) } }
     private func handle(_ event: NSEvent) -> NSEvent? {
