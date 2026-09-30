@@ -99,9 +99,11 @@ final class MailStore: ObservableObject {
         } else { messages = Self.samples() }
         if demoMode {
             messages = Self.samples(); folders = MailFolder.defaults; drafts = []; pending = []; historyID = nil; account = GmailClient.sampleAccount
-            preferences = MailPreferences(); preferences.markRead = false
+            preferences = MailPreferences(); preferences.markRead = false; preferences.appearance = "light"
             var earlier = messages[0]; earlier.id = "demo-thread-1"; earlier.date = Date().addingTimeInterval(-86400); earlier.subject = "Business Analyst interview"; earlier.body = "Hi Alex,\n\nThanks for applying. We'd like to arrange an interview next week. Which days work for you?\n\nBest,\nJordan"; earlier.labels = ["confirmations"]
             var reply = earlier; reply.id = "demo-thread-2"; reply.from = "Alex <alex@example.com>"; reply.to = "Jordan <team@northpeak.example>"; reply.date = Date().addingTimeInterval(-72000); reply.body = "Hi Jordan,\n\nThursday morning works for me. Thanks for the invitation.\n\nBest,\nAlex"; reply.labels = ["SENT"]
+            earlier.body = "Hi Alex,\n\nThanks for applying. We’d like to arrange an interview next week. Which days work for you?\n\nThe conversation will cover your recent work, how you approach a new project, and the kind of team you’d like to join. There is no preparation exercise.\n\nYou’ll meet Jordan from the product team and Sam from operations. We’ll leave time for your questions about the role and our working week.\n\nBest,\nJordan"
+            messages[0].body += "\n\nOn the previous day, Alex wrote:\n> Hi Jordan,\n> Thursday morning works for me. Thanks for the invitation.\n> Best,\n> Alex"
             messages += [earlier, reply]
         }
         for i in messages.indices { messages[i].recoverBodyParts() }

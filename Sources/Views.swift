@@ -328,7 +328,7 @@ struct ReadingPane: View {
                         }
                         .opacity(store.threadMessages.count <= 1 || positionedID == selected.id ? 1 : 0)
                         .task(id: selected.id) {
-                            centerTask?.cancel(); centeringID = selected.id; selectedBodyReady = false
+                            centerTask?.cancel(); centeringID = selected.id; selectedBodyReady = selected.html.isEmpty || plain
                             if store.threadMessages.count <= 1 {
                                 centeringID = nil; positionedID = selected.id
                                 proxy.scrollTo("thread-top", anchor: .top)
@@ -338,6 +338,7 @@ struct ReadingPane: View {
                             await Task.yield()
                             guard !Task.isCancelled, store.selectedID == selected.id else { return }
                             proxy.scrollTo(scrollTarget, anchor: .top)
+                            if selectedBodyReady { settleCenter(proxy, readyID: selected.id) }
                         }
                         .onChange(of: store.threadMessages.map(\.id)) { _, _ in
                             guard store.threadMessages.count > 1 else { return }
@@ -846,6 +847,10 @@ struct WindowChrome: NSViewRepresentable {
             window.styleMask.insert(.fullSizeContentView)
             window.toolbar = nil
             window.isMovableByWindowBackground = true
+            if Bundle.main.bundleIdentifier == "com.jack.Post.demo" {
+                window.setContentSize(NSSize(width: 1670, height: 920))
+                window.center()
+            }
         }
     }
 }

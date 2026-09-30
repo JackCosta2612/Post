@@ -1,24 +1,30 @@
-# Demo walkthroughs
+# Demo recording
 
-The MP4s show the running native Post Demo build using fictional mail. They use captioned app captures rather than real-time screen recordings. No live Gmail account, private message, OAuth file, or attachment is shown.
+[Watch or download Post’s demo](media/post-demo.mp4). The video also plays at the top of the repository README.
 
-## Mailbox and conversation
+The 1 minute 46 second video records the native Post Demo app with fictional mail. It shows opening mail, Down-arrow navigation, scrolling a conversation, expanding quoted text, replying, saving a draft, opening and deleting that draft, collapsing the sidebar, and switching between light and dark appearance.
 
-[Watch mailbox-demo.mp4](media/mailbox-demo.mp4)
+The reply was typed letter by letter. Idle gaps were trimmed. Cursor movements, click rings, and keyboard indicators were added from the recorded action times. The cream background, rounded window framing, and shadow were applied during editing. No live Gmail account, private message, credentials, or attachment appears in the recording.
 
-1. Labels and a focused Primary inbox.
-2. A three-message conversation, including a sent reply.
-3. Scroll through the conversation without opening separate windows.
-4. Command + R opens a reply and focuses the body.
+## Record another take
 
-## Dark mode and drafts
+Build the isolated demo described in [Contributing](../CONTRIBUTING.md). It uses a separate bundle identifier and sample mailbox, starts in light mode, and opens a 1670 × 920 window.
 
-[Watch dark-mode-demo.mp4](media/dark-mode-demo.mp4)
+For a native window capture, compile the helper on macOS 15 or later:
 
-1. Dark appearance in Settings; Light and System are also available.
-2. Collapsed sidebar and Shift-arrow bulk selection without checkboxes.
-3. A saved reply draft opens in the reading pane.
+```sh
+swiftc -parse-as-library scripts/record-demo.swift -o /tmp/post-demo-recorder
+/tmp/post-demo-recorder /tmp/post-demo.mp4 /tmp/post-demo.stop
+```
 
-## Recreate captures
+Grant screen recording permission if macOS asks. Create `/tmp/post-demo.stop` to finish recording. Remove an existing stop file before starting another take. This helper records only the Post Demo window, including its sheets, at 60 fps without audio or the system cursor. Post itself still supports macOS 14.
 
-Build the isolated demo described in [Contributing](../CONTRIBUTING.md). Capture only that app's window in the states above and save the PNGs under `docs/demo-frames` as `01-inbox.png` through `07-drafts.png`. That directory is ignored by Git. With FFmpeg and the Python Pillow package installed, run `python3 scripts/render-demos.py` to produce the videos and README images. FFmpeg is only required for this documentation step, not to build Post.
+With FFmpeg and Python Pillow installed, frame the capture and add action indicators:
+
+```sh
+python3 scripts/edit-demo.py /tmp/post-demo.mp4 /tmp/timeline.json /tmp/post-demo-edited.mp4
+```
+
+The timeline has a `start` Unix timestamp and an `events` array. Each event has an `at` timestamp, a `kind` (`click`, `key`, `typing`, or `end`), an optional `point` in capture pixels, and a `label` for the keyboard indicator. Use times from the actual interaction. Review the entire edited video before publishing it.
+
+The older `mailbox-demo.mp4` and `dark-mode-demo.mp4` files are captioned app captures, retained as earlier documentation examples.
