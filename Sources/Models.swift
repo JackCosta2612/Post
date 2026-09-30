@@ -95,7 +95,7 @@ struct Shortcut: Codable, Equatable {
         "next": .init(key: "down"), "previous": .init(key: "up"), "label": .init(key: "l"),
         "trash": .init(key: "delete"), "clear": .init(key: "escape"), "archive": .init(key: "e"),
         "compose": .init(key: "n", command: true), "search": .init(key: "f", command: true),
-        "refresh": .init(key: "r", command: true, shift: true, option: true), "sidebar": .init(key: "s", command: true, option: true)
+        "refresh": .init(key: "r", command: true, shift: true, option: true), "sidebar": .init(key: "s", command: true)
     ]
     static let names: [(String, String)] = [("reply", "Reply"), ("replyAll", "Reply all"), ("next", "Next message"), ("previous", "Previous message"), ("label", "Apply label"), ("trash", "Move to Trash"), ("clear", "Clear selection"), ("archive", "Archive"), ("compose", "Compose"), ("search", "Search"), ("refresh", "Refresh mail"), ("sidebar", "Toggle sidebar")]
     static func parse(_ value: String) -> Shortcut? {

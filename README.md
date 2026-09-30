@@ -2,7 +2,7 @@
 
 A native SwiftUI email client for macOS and one Gmail account. Labels, keyboard navigation, and a quiet three-pane layout are the focus.
 
-https://github.com/user-attachments/assets/a79a26d5-4c8a-45de-a7da-66d23edb9db2
+https://github.com/user-attachments/assets/9e444f02-44cd-43bf-888f-ac5bf4f9d46a
 
 [Download the preview](docs/media/post-demo.mp4)
 
@@ -50,7 +50,7 @@ See [build and signing instructions](docs/build.md) for prerequisites, Keychain 
 | Clear selection | Escape |
 | Search | Command + F |
 | Refresh | Command + Shift + Option + R |
-| Toggle sidebar | Command + Option + S |
+| Toggle sidebar | Command + S |
 
 Typing keeps normal cursor and editing behavior. Escape after editing a reply offers Save, Discard changes, or Keep writing. Return activates a prompt's default action; Escape cancels it.
 
