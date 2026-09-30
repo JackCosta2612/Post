@@ -214,7 +214,7 @@ struct MailWindow: View {
                     .onChange(of: store.selectedID) { _, id in if let id { withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(id) } } }
                 }
             }
-        }.background(PostStyle.background)
+        }.background(PostStyle.background).id(store.folderID)
     }
     private var footer: some View {
         HStack(spacing: 15) {
