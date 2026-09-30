@@ -221,3 +221,15 @@ enum MIMEBuilder {
         return Data(s.utf8)
     }
 }
+
+/// Keep quoted history available without repeating it in every conversation message.
+enum MessageQuote {
+    static func split(_ text: String) -> (body: String, quote: String?) {
+        let lines = text.components(separatedBy: "\n")
+        guard let index = lines.firstIndex(where: { line in
+            let value = line.trimmingCharacters(in: .whitespaces)
+            return value.hasPrefix(">") || (value.hasPrefix("On ") && value.hasSuffix("wrote:")) || value == "-----Original Message-----"
+        }) else { return (text, nil) }
+        return (lines[..<index].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines), lines[index...].joined(separator: "\n"))
+    }
+}

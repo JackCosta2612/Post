@@ -8,6 +8,9 @@ struct BehaviorTests {
             checks += 1
             guard result() else { fatalError("FAILED: \(name)") }
         }
+        check(MessageQuote.split("Hello\n\nOn Tuesday, Alex wrote:\n> Previous").body == "Hello", "Reply header is folded with quote")
+        check(MessageQuote.split("Hello\n> Previous").quote == "> Previous", "Plain quoted lines remain expandable")
+        check(MessageQuote.split("Unquoted message").quote == nil, "Unquoted content stays visible")
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("PostTests-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = MailStore(directory: directory)

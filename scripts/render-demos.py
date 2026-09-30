@@ -48,4 +48,10 @@ video('dark-mode-demo', [
     ('07-drafts.png', 'Saved drafts open in the preview pane. Escape offers Save or Discard.'),
 ])
 for source, target in [('02-thread.png', 'light.png'), ('05-dark.png', 'dark.png')]:
-    run(['-i', str(frames / source), '-vf', 'crop=iw:ih-56:0:56,scale=1440:-2', '-frames:v', '1', str(media / target)])
+    image = Image.open(frames / source).convert('RGBA')
+    image = image.crop((0, 56, image.width, image.height))
+    image.thumbnail((1440, 2000), Image.Resampling.LANCZOS)
+    mask = Image.new('L', image.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, image.width - 1, image.height - 1), radius=18, fill=255)
+    image.putalpha(mask)
+    image.save(media / target)

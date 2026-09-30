@@ -21,13 +21,6 @@ The app starts with fictional sample mail until you connect Gmail. Follow the [G
 
 See [build and signing instructions](docs/build.md) for prerequisites, Keychain prompts, Xcode, and rebuilding the icon.
 
-## Demos
-
-- [Mailbox, conversation, and reply walkthrough](docs/media/mailbox-demo.mp4)
-- [Dark mode, bulk selection, and drafts walkthrough](docs/media/dark-mode-demo.mp4)
-
-The videos use an isolated sample mailbox. They are annotated walkthroughs assembled from captures of the running app. [Demo details and captions](docs/demos.md).
-
 ## Features
 
 - Light, Dark, or System appearance. Collapsible sidebar with unread or total counts.
