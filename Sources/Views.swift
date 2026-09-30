@@ -77,7 +77,7 @@ struct MailWindow: View {
         .background(WindowChrome())
         .buttonStyle(PostButtonStyle())
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: store.preferences.collapsed)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: store.selectedID)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: store.selectedID != nil && !store.bulkMode)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: store.selectedDraftID)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: store.bulkIDs)
         .background(PostStyle.background)
@@ -203,7 +203,7 @@ struct MailWindow: View {
                                         .contextMenu { if !store.bulkMode { Button("Edit draft") { store.select(draft.id) } }; Button(store.bulkMode && store.bulkIDs.contains(draft.id) ? "Delete selected drafts" : "Delete draft", role: .destructive) { store.prepareContextSelection(draft.id); store.draftsToDelete = store.drafts.filter { store.actionIDs.contains($0.id) } } }
                                 }
                             }
-                        }.onChange(of: store.selectedID) { _, id in if let id { withAnimation { proxy.scrollTo(id, anchor: .center) } } }
+                        }.onChange(of: store.selectedID) { _, id in if let id { withAnimation { proxy.scrollTo(id) } } }
                     }
                 }
             } else if store.visibleMessages.isEmpty {
@@ -211,7 +211,7 @@ struct MailWindow: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView { LazyVStack(spacing: 0) { ForEach(store.visibleMessages) { message in MessageRow(message: message).id(message.id) }; if store.nextPage != nil { Button("Load more messages") { Task { await store.refresh(more: true) } }.padding(20).disabled(store.busy) } } }
-                    .onChange(of: store.selectedID) { _, id in if let id { withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(id, anchor: .center) } } }
+                    .onChange(of: store.selectedID) { _, id in if let id { withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(id) } } }
                 }
             }
         }.background(PostStyle.background)
@@ -311,7 +311,7 @@ struct ReadingPane: View {
                     }
                 }
             }
-        }.background(PostStyle.surface).onChange(of: store.selectedID) { _, _ in plain = false }
+        }.animation(nil, value: store.selectedID).background(PostStyle.surface).onChange(of: store.selectedID) { _, _ in plain = false }
     }
 }
 

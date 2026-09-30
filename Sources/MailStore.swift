@@ -71,13 +71,13 @@ final class MailStore: ObservableObject {
         return folder.contains(message)
     }
     var visibleMessages: [MailMessage] {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
         let values = messages.filter { message in
-            if let remote = currentRemoteIDs, connected {
-                guard remote.contains(message.id) else { return false }
-                return contains(folder, message)
-            }
+            if let remote = currentRemoteIDs, connected, !remote.contains(message.id) { return false }
             guard contains(folder, message) else { return false }
-            return true
+            return query.isEmpty || [message.from, message.subject, message.snippet, message.body].contains {
+                $0.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+            }
         }
         return values.sorted { $0.date > $1.date }
     }

@@ -26,7 +26,11 @@ struct BehaviorTests {
         let store = MailStore(directory: directory)
         let searchIDs = store.visibleMessages.map(\.id)
         store.search = "Northpeak"
-        check(store.visibleMessages.map(\.id) == searchIDs, "Search keeps the loaded mailbox list intact")
+        check(store.visibleMessages.count == 1 && store.visibleMessages[0].senderName == "Northpeak", "Search filters the loaded list to matching emails")
+        store.search = "no-such-phrase"
+        check(store.visibleMessages.isEmpty, "Unmatched emails are hidden by local search")
+        store.search = ""
+        check(store.visibleMessages.map(\.id) == searchIDs, "Clearing search restores the loaded list")
         store.search = ""
         var legacyBody = store.messages[0]; legacyBody.html = ""
         legacyBody.attachments = [.init(id: "old-html", name: "Inline image", mimeType: "text/html", size: 12, data: Data("<p>Recovered</p>".utf8), contentID: "body")]
