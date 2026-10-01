@@ -336,7 +336,16 @@ final class MailStore: ObservableObject {
             if !more {
                 let remoteFolders = try await gmail.folders()
                 guard folderID == viewID else { return }
-                folders = remoteFolders
+                // Composite counts are absent from Gmail's label metadata. Preserve them
+                // until their query counts are ready, rather than publishing temporary zeros.
+                var refreshedFolders = remoteFolders
+                for i in refreshedFolders.indices where ["primary", "all"].contains(refreshedFolders[i].id) {
+                    if let previous = folders.first(where: { $0.id == refreshedFolders[i].id }) {
+                        refreshedFolders[i].unreadCount = previous.unreadCount
+                        refreshedFolders[i].totalCount = previous.totalCount
+                    }
+                }
+                folders = refreshedFolders
                 if folderID == "primary", folderCacheKey != cacheKey {
                     restoreFolderSnapshot(); scheduleLoad(); persist(); return
                 }
@@ -344,11 +353,13 @@ final class MailStore: ObservableObject {
                 // Composite views count messages in their own query, rather than a category's archived mail.
                 let primaryUnread = try await gmail.count(query: primaryQuery + " is:unread")
                 let primaryTotal = preferences.totalCounts ? try await gmail.count(query: primaryQuery) : folders.first(where: { $0.id == "primary" })?.totalCount ?? 0
-                if let i = folders.firstIndex(where: { $0.id == "primary" }) { folders[i].unreadCount = primaryUnread; folders[i].totalCount = primaryTotal }
-                if let i = folders.firstIndex(where: { $0.id == "all" }) {
-                    folders[i].unreadCount = try await gmail.count(query: "-in:trash -in:spam -in:drafts is:unread")
-                    if preferences.totalCounts { folders[i].totalCount = try await gmail.count(query: "-in:trash -in:spam -in:drafts") }
-                }
+                let allUnread = try await gmail.count(query: "-in:trash -in:spam -in:drafts is:unread")
+                let allTotal = preferences.totalCounts ? try await gmail.count(query: "-in:trash -in:spam -in:drafts") : folders.first(where: { $0.id == "all" })?.totalCount ?? 0
+                guard !Task.isCancelled, folderID == viewID, folderCacheKey == cacheKey, refreshGeneration == generation else { return }
+                var countedFolders = folders
+                if let i = countedFolders.firstIndex(where: { $0.id == "primary" }) { countedFolders[i].unreadCount = primaryUnread; countedFolders[i].totalCount = primaryTotal }
+                if let i = countedFolders.firstIndex(where: { $0.id == "all" }) { countedFolders[i].unreadCount = allUnread; countedFolders[i].totalCount = allTotal }
+                folders = countedFolders
                 if folderID == "DRAFT" { await loadDrafts() }
             }
             if preferences.notifications && !more && lastSync != nil {
