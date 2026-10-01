@@ -399,7 +399,7 @@ struct ReadingPane: View {
                                     ConversationMessage(message: message, plain: plain, onLayoutReady: { settleCenter(proxy, readyID: message.id) })
                                         .id(message.id)
                                         .padding(18)
-                                        .background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 12))
+                                        .background(PostStyle.adaptive(.white, NSColor(srgbRed: 0.16, green: 0.19, blue: 0.23, alpha: 1)), in: RoundedRectangle(cornerRadius: 12))
                                 }
                             }.padding(24).frame(maxWidth: .infinity, alignment: .leading).id("thread-top")
                         }
@@ -537,6 +537,8 @@ struct HTMLMessage: View {
     var body: some View {
         HTMLDocument(html: html, remoteImages: remoteImages, originalColors: originalColors, foldQuotes: foldQuotes, fontName: fontName, fontSize: fontSize, onReady: onReady, height: $height)
             .frame(height: height)
+            .background(originalColors ? Color.white : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -683,7 +685,7 @@ struct HTMLDocument: NSViewRepresentable {
         let renderedHTML = remoteImages ? MessageHTML.cachedImageURLs(html) : html
         let dark = colorScheme == .dark && !originalColors
         let colors = originalColors ? "" : "body{background:transparent!important;color:\(dark ? "#e5eaf1" : "#242a34")!important}body *{font-family:inherit!important;color:inherit!important;-webkit-text-fill-color:currentColor!important}p,span,td,th,div,li,table,h1,h2,h3,h4,h5,h6{background-color:transparent!important}p,span,td,li{font-size:inherit!important}a,a *{color:\(dark ? "#9ecafa" : "#176edc")!important}"
-        let document = "<!doctype html><html data-post-render='\(generation)'><head><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; img-src \(images); style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'\"><style>body{background:white;font:\(fontSize)px \(MIMEBuilder.htmlEscape(fontName)),sans-serif;color:#242a34;margin:0;padding:12px 0;box-sizing:border-box;line-height:1.65;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}a{color:#176edc}html{overflow:hidden}details.post-quote{margin-top:14px}details.post-quote>summary{cursor:pointer;font-size:12px;color:#7d8b9c;user-select:none}details.post-quote[open]>summary{margin-bottom:12px}\(colors)</style></head><body>\(renderedHTML)</body></html>"
+        let document = "<!doctype html><html data-post-render='\(generation)'><head><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; img-src \(images); style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'\"><style>body{background:white;font:\(fontSize)px \(MIMEBuilder.htmlEscape(fontName)),sans-serif;color:#242a34;margin:0;padding:20px 24px;box-sizing:border-box;line-height:1.65;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}a{color:#176edc}html{overflow:hidden}details.post-quote{margin-top:14px}details.post-quote>summary{cursor:pointer;font-size:12px;color:#7d8b9c;user-select:none}details.post-quote[open]>summary{margin-bottom:12px}\(colors)</style></head><body>\(renderedHTML)</body></html>"
         context.coordinator.navigation = view.loadHTMLString(document, baseURL: nil)
     }
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -774,7 +776,7 @@ struct ComposePane: View {
     }
     var body: some View {
         VStack(spacing: 0) {
-            HStack { Text(draft.quotedText == nil ? "Compose" : "Reply").font(PostStyle.font(size: 18, weight: .semibold)); Spacer(); if sending { ProgressView().controlSize(.small) }; Button("Save & close") { saveAndClose() }.disabled(sending); Button("Send") { sending = true; Task { if await store.send(draft) { closeEditor() }; sending = false } }.buttonStyle(.borderedProminent).disabled(sending || draft.to.isEmpty || !store.connected); Button { showSchedule = true } label: { Image(systemName: "clock") }.help("Send later").disabled(sending || draft.to.isEmpty || !store.connected) ; Button { confirmDelete = true } label: { Image(systemName: "trash") }.help("Delete draft").disabled(sending) }.padding(20)
+            HStack { Text(draft.quotedText == nil ? "Compose" : "Reply").font(PostStyle.font(size: 18, weight: .semibold)); Spacer(); if sending { ProgressView().controlSize(.small) }; Button("Save & close") { saveAndClose() }.disabled(sending); Button("Send") { sending = true; Task { if await store.send(draft) { closeEditor() }; sending = false } }.buttonStyle(.borderedProminent).disabled(sending || draft.to.isEmpty || !store.connected); Button { showSchedule = true } label: { Image(systemName: "clock") }.help("Send later").popover(isPresented: $showSchedule, attachmentAnchor: .rect(.bounds), arrowEdge: .top) { schedulePopover }.disabled(sending || draft.to.isEmpty || !store.connected) ; Button { confirmDelete = true } label: { Image(systemName: "trash") }.help("Delete draft").disabled(sending) }.padding(20)
             Divider()
             HStack { Text("To").frame(width: 65, alignment: .leading).fixedSize(horizontal: false, vertical: true).foregroundStyle(.secondary); TextField("", text: $draft.to).accessibilityLabel("To").textFieldStyle(.plain); Button("Cc/Bcc") { showCC.toggle() }.buttonStyle(PostButtonStyle()).font(PostStyle.font(size: 11)).foregroundStyle(.secondary) }.padding(.horizontal, 22).padding(.vertical, 12)
             if showCC || !draft.cc.isEmpty || !draft.bcc.isEmpty { recipientRow("Cc", text: $draft.cc); recipientRow("Bcc", text: $draft.bcc) }
@@ -804,14 +806,6 @@ struct ComposePane: View {
         }.animation(.easeInOut(duration: 0.22), value: showCC).buttonStyle(PostButtonStyle()).frame(width: embedded ? nil : 760, height: embedded ? nil : 620).frame(maxWidth: .infinity, maxHeight: .infinity).background(PostStyle.background).preferredColorScheme(PostStyle.scheme(store.preferences.appearance)).interactiveDismissDisabled(true)
         .onAppear { composeFont = store.preferences.composerFont ?? "SF Pro Display"; composeSize = store.preferences.composerSize ?? 14; composeColor = store.preferences.composerColor ?? "default"; composeSpacing = store.preferences.composerSpacing ?? 3; if let rich = draft.richBody, let text = try? NSAttributedString(data: rich, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil), text.length > 0, let font = text.attribute(.font, at: 0, effectiveRange: nil) as? NSFont { composeFont = font.familyName ?? composeFont; composeSize = font.pointSize }; if !initialized { existedAtOpen = store.drafts.contains { $0.id == draft.id }; initialized = true; if !embedded && !draft.to.isEmpty { DispatchQueue.main.async { focusBodyStart(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { if let editor = NSApp.keyWindow?.firstResponder as? NSTextView { editor.setSelectedRange(NSRange(location: 0, length: 0)); editor.scrollRangeToVisible(NSRange(location: 0, length: 0)) } } } } } }
         .onChange(of: bodyEditor != nil) { _, ready in if ready && !draft.to.isEmpty { focusBodyStart() } }
-        .popover(isPresented: $showSchedule) {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Send later").font(PostStyle.font(size: 13, weight: .semibold))
-                DatePicker("Send at", selection: $scheduleDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
-                Text("Post sends while running. Overdue mail sends after reopening.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
-                HStack { Button("Cancel") { showSchedule = false }; Button("Schedule") { if store.queueSend(draft, at: scheduleDate) { showSchedule = false; closeEditor() } }.buttonStyle(.borderedProminent) }
-            }.padding(22).frame(width: 400)
-        }
         .onChange(of: store.composerDismissRequest) { _, _ in requestDismiss() }
         .postPrompt("Save draft?", isPresented: $showDismissPrompt, message: "Save your changes before closing?", actions: ["Save", "Keep writing", "Discard changes"]) { response in
             if response == 0 { saveAndClose() }
@@ -835,6 +829,14 @@ struct ComposePane: View {
             bodyEditor.window?.makeFirstResponder(bodyEditor)
             bodyEditor.setSelectedRange(NSRange(location: 0, length: 0)); bodyEditor.scrollRangeToVisible(NSRange(location: 0, length: 0))
         }
+    }
+    private var schedulePopover: some View {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Send later").font(PostStyle.font(size: 13, weight: .semibold))
+                DatePicker("Send at", selection: $scheduleDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
+                Text("Post sends while running. Overdue mail sends after reopening.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+                HStack { Button("Cancel") { showSchedule = false }; Button("Schedule") { if store.queueSend(draft, at: scheduleDate) { showSchedule = false; closeEditor() } }.buttonStyle(.borderedProminent) }
+            }.padding(22).frame(width: 400)
     }
     private func formatUnderline() { bodyEditor?.postToggleUnderline() }
     private func formatTrait(_ trait: NSFontTraitMask) { bodyEditor?.postToggleTrait(trait) }

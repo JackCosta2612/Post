@@ -221,11 +221,11 @@ extension NSTextView {
         let fallback = typingAttributes[.font] as? NSFont ?? .systemFont(ofSize: 14)
         let selectedFont = range.length > 0 ? storage.attribute(.font, at: range.location, effectiveRange: nil) as? NSFont ?? fallback : fallback
         let oblique = range.length > 0 ? storage.attribute(.obliqueness, at: range.location, effectiveRange: nil) as? Double ?? 0 : typingAttributes[.obliqueness] as? Double ?? 0
-        let remove = manager.traits(of: selectedFont).contains(trait) || (trait == .italicFontMask && oblique != 0)
+        let remove = trait == .italicFontMask ? abs(selectedFont.italicAngle) > 0.01 || oblique != 0 : manager.traits(of: selectedFont).contains(trait)
         func attributes(_ font: NSFont) -> [NSAttributedString.Key: Any] {
             let converted = remove ? manager.convert(font, toNotHaveTrait: trait) : manager.convert(font, toHaveTrait: trait)
             var result: [NSAttributedString.Key: Any] = [.font: converted]
-            if trait == .italicFontMask { result[.obliqueness] = !remove && !manager.traits(of: converted).contains(.italicFontMask) ? 0.2 : 0.0 }
+            if trait == .italicFontMask { result[.obliqueness] = !remove && abs(converted.italicAngle) < 0.01 ? 0.2 : 0.0 }
             return result
         }
         if range.length == 0 { typingAttributes.merge(attributes(fallback)) { _, new in new } }
