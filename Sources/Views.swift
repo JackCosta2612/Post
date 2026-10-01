@@ -7,10 +7,12 @@ typealias LocalState<Value> = SwiftUI.State<Value>
 
 final class PostPalette: ObservableObject {
     static let shared = PostPalette()
+    @Published var interfaceFont = "SF Pro Display"
     @Published var name = "blue"
     @Published var hex = "3B6EA3"
 }
 enum PostStyle {
+    static func font(size: CGFloat, weight: Font.Weight = .regular) -> Font { .custom(PostPalette.shared.interfaceFont, size: size).weight(weight) }
     static func adaptive(_ light: NSColor, _ dark: NSColor) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
@@ -82,6 +84,7 @@ struct MailWindow: View {
             }
         }
         .onAppear { configurePresentation(); DispatchQueue.main.async { if store.compose == nil && store.selectedDraftID == nil { NSApp.keyWindow?.makeFirstResponder(nil) } } }
+        .onChange(of: store.preferences.interfaceFont) { _, _ in configurePresentation() }
         .onChange(of: store.preferences.accentColor) { _, _ in configurePresentation() }
         .onChange(of: store.preferences.accentHex) { _, _ in configurePresentation() }
         .onChange(of: store.visibleMessages.map(\.id)) { _, _ in if store.preferences.cacheMode == "fast" { configurePresentation() } }
@@ -100,6 +103,7 @@ struct MailWindow: View {
         .background(PostStyle.background)
         .foregroundStyle(.primary)
         .tint(PostStyle.accent)
+        .font(PostStyle.font(size: 13))
         .frame(minWidth: 980, minHeight: 630)
         .preferredColorScheme(PostStyle.scheme(store.preferences.appearance))
         .sheet(isPresented: $store.showSettings) { SettingsPane().environmentObject(store) }
@@ -126,12 +130,12 @@ struct MailWindow: View {
                         return Button { NSApp.keyWindow?.makeFirstResponder(nil); store.chooseFolder(folder.id) } label: {
                             ZStack(alignment: .leading) {
                                 Image(systemName: folder.icon.replacingOccurrences(of: "circle", with: "square"))
-                                    .font(.system(size: 17, weight: .regular)).frame(width: 44, height: 44)
+                                    .font(PostStyle.font(size: 17, weight: .regular)).frame(width: 44, height: 44)
                                     .offset(x: store.preferences.collapsed ? 0 : 6)
-                                Text(folder.name).font(.system(size: 13, weight: selected ? .medium : .regular))
+                                Text(folder.name).font(PostStyle.font(size: 13, weight: selected ? .medium : .regular))
                                     .lineLimit(1).frame(width: 166, alignment: .leading).offset(x: 58)
                                 if count > 0 {
-                                    Text(count > 9999 ? "9k+" : String(count)).font(.system(size: 11, weight: .medium)).monospacedDigit()
+                                    Text(count > 9999 ? "9k+" : String(count)).font(PostStyle.font(size: 11, weight: .medium)).monospacedDigit()
                                         .foregroundStyle(selected ? PostStyle.accent : PostStyle.secondary)
                                         .frame(width: 25, alignment: .trailing).offset(x: 230)
                                 }
@@ -142,7 +146,7 @@ struct MailWindow: View {
                                 .overlay(alignment: .topTrailing) {
                                     if store.preferences.collapsed && count > 0 {
                                         Text(count > 99 ? "99+" : String(count))
-                                            .font(.system(size: 9, weight: .semibold)).monospacedDigit()
+                                            .font(PostStyle.font(size: 9, weight: .semibold)).monospacedDigit()
                                             .foregroundStyle(.white).padding(.horizontal, 4)
                                             .frame(minWidth: 16, minHeight: 16)
                                             .background(PostStyle.accent, in: RoundedRectangle(cornerRadius: 5))
@@ -152,22 +156,10 @@ struct MailWindow: View {
                             .background(MailDragSurface(payload: folder.id != "primary" && (folder.isCustom || folder.id == "CATEGORY_PROMOTIONS") ? "post-label:" + folder.id : nil, title: folder.name))
                         }.buttonStyle(PostButtonStyle(inset: 0, selected: selected))
                             .accessibilityLabel(folder.name).help(folder.id == "TRASH" ? folder.name : "\(folder.name): \(count) \(store.preferences.totalCounts ? "messages" : "unread messages")")
-                            .onDrop(of: [UTType.text], isTargeted: nil) { providers, location in
-                                guard let provider = providers.first, provider.canLoadObject(ofClass: NSString.self) else { return false }
-                                _ = provider.loadObject(ofClass: NSString.self) { value, _ in
-                                    guard let text = value as? String else { return }
-                                    Task { @MainActor in
-                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                            if text.hasPrefix("post-label:") { _ = store.reorderSidebarLabel(String(text.dropFirst(11)), before: folder.id, after: location.y > 22) }
-                                            else { _ = store.handleSidebarDrop([text], target: folder.id) }
-                                        }
-                                    }
-                                }
-                                return true
-                            }
+                            .modifier(LabelDropTarget(id: folder.id, height: 44, store: store, acceptsMessages: true))
                             .overlay(alignment: .trailing) {
                                 if showLabelHints, let shortcut = store.shortcutLabels().first(where: { $0.0.id == folder.id })?.1 {
-                                    Text(shortcut.key.uppercased()).font(.system(size: 11, weight: .semibold)).frame(width: 22, height: 22).background(PostStyle.surface, in: RoundedRectangle(cornerRadius: 5)).padding(.trailing, store.preferences.collapsed ? 0 : 9).allowsHitTesting(false)
+                                    Text(shortcut.key.uppercased()).font(PostStyle.font(size: 11, weight: .semibold)).frame(width: 22, height: 22).background(PostStyle.surface, in: RoundedRectangle(cornerRadius: 5)).padding(.trailing, store.preferences.collapsed ? 0 : 9).allowsHitTesting(false)
                                 }
                             }
                             .contextMenu {
@@ -179,9 +171,9 @@ struct MailWindow: View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .leading) {
                 Button { store.preferences.collapsed.toggle() } label: {
-                    Image(systemName: "sidebar.left").font(.system(size: 16)).frame(width: 44, height: 38)
+                    Image(systemName: "sidebar.left").font(PostStyle.font(size: 16)).frame(width: 44, height: 38)
                 }.buttonStyle(PostButtonStyle(inset: 0)).help(store.preferences.collapsed ? "Expand sidebar" : "Collapse sidebar")
-                Text("Post").font(.system(size: 14, weight: .semibold)).foregroundStyle(PostStyle.secondary).offset(x: 218)
+                Text("Post").font(PostStyle.font(size: 14, weight: .semibold)).foregroundStyle(PostStyle.secondary).offset(x: 218)
             }.frame(width: 264, height: 38, alignment: .leading).padding(.leading, 20).padding(.top, 43).padding(.bottom, 12)
             GeometryReader { geometry in
                 VStack(spacing: 0) {
@@ -200,7 +192,7 @@ struct MailWindow: View {
             }.padding(.leading, 20).padding(.top, 16).frame(width: 284, alignment: .leading)
             ZStack(alignment: .leading) {
                 Button { store.showSettings = true } label: { Image(systemName: "gearshape").frame(width: 44, height: 44) }.buttonStyle(PostButtonStyle(inset: 0)).help("Settings")
-                Button { showNewLabel = true } label: { Label("New label", systemImage: "plus").font(.system(size: 12)) }.offset(x: 58)
+                Button { showNewLabel = true } label: { Label("New label", systemImage: "plus").font(PostStyle.font(size: 12)) }.offset(x: 58)
             }.frame(width: 264, height: 44, alignment: .leading).frame(width: store.preferences.collapsed ? 44 : 264, alignment: .leading).clipped().padding(.leading, 20).padding(.vertical, 12).foregroundStyle(PostStyle.secondary)
         }.frame(width: 284, alignment: .leading)
             .frame(width: store.preferences.collapsed ? 88 : 304, alignment: .leading)
@@ -208,21 +200,21 @@ struct MailWindow: View {
     }
     private var emptyReading: some View {
         VStack(spacing: 14) {
-            Image(systemName: "envelope").font(.system(size: 34, weight: .light))
-            Text(store.folderID == "DRAFT" ? "Select a draft to continue writing" : "Select a message to read").font(.system(size: 18, weight: .medium))
-            Text("Use \(store.preferences.shortcuts["previous"]?.display ?? "↑") and \(store.preferences.shortcuts["next"]?.display ?? "↓") to navigate").font(.system(size: 12))
+            Image(systemName: "envelope").font(PostStyle.font(size: 34, weight: .light))
+            Text(store.folderID == "DRAFT" ? "Select a draft to continue writing" : "Select a message to read").font(PostStyle.font(size: 18, weight: .medium))
+            Text("Use \(store.preferences.shortcuts["previous"]?.display ?? "↑") and \(store.preferences.shortcuts["next"]?.display ?? "↓") to navigate").font(PostStyle.font(size: 12))
         }.foregroundStyle(PostStyle.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     private var topBar: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(store.folder.name).font(.system(size: 20, weight: .semibold)).lineLimit(1)
-                Text("\(store.folderID == "DRAFT" ? store.drafts.count : store.visibleMessages.count) messages").font(.system(size: 11)).foregroundStyle(PostStyle.secondary)
+                Text(store.folder.name).font(PostStyle.font(size: 20, weight: .semibold)).lineLimit(1)
+                Text("\(store.folderID == "DRAFT" ? store.drafts.count : store.visibleMessages.count) messages").font(PostStyle.font(size: 11)).foregroundStyle(PostStyle.secondary)
             }
             Spacer(minLength: 8)
             Button { Task { await store.refresh(manual: true) } } label: {
                 if store.manualRefreshing { ProgressView().controlSize(.small).frame(width: 17, height: 17) }
-                else { Image(systemName: "arrow.clockwise").font(.system(size: 15, weight: .regular)) }
+                else { Image(systemName: "arrow.clockwise").font(PostStyle.font(size: 15, weight: .regular)) }
             }.disabled(store.busy).help("Refresh mail").contextMenu { Button("Refresh mail") { Task { await store.refresh(manual: true) } } }
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(PostStyle.secondary)
@@ -230,10 +222,10 @@ struct MailWindow: View {
                 if !store.search.isEmpty { Button { store.search = "" } label: { Image(systemName: "xmark") } }
             }.padding(10).background(PostStyle.surface.opacity(0.65), in: RoundedRectangle(cornerRadius: 10)).frame(width: 220)
             Button { store.newCompose() } label: {
-                Label("Compose", systemImage: "square.and.pencil").font(.system(size: 13, weight: .medium)).foregroundStyle(PostStyle.buttonText).padding(.horizontal, 10).padding(.vertical, 6).background(PostStyle.accent, in: RoundedRectangle(cornerRadius: 9))
+                Label("Compose", systemImage: "square.and.pencil").font(PostStyle.font(size: 13, weight: .medium)).foregroundStyle(PostStyle.buttonText).padding(.horizontal, 10).padding(.vertical, 6).background(PostStyle.accent, in: RoundedRectangle(cornerRadius: 9))
             }
             Menu { Text(store.account); if !store.connected { Button("Connect Gmail…") { store.showSettings = true } }; Button("Settings…") { store.showSettings = true } } label: {
-                Text(String(store.account.prefix(2)).uppercased()).font(.system(size: 12, weight: .semibold)).foregroundStyle(PostStyle.accent).frame(width: 32, height: 32).background(PostStyle.selection, in: RoundedRectangle(cornerRadius: 9))
+                Text(String(store.account.prefix(2)).uppercased()).font(PostStyle.font(size: 12, weight: .semibold)).foregroundStyle(PostStyle.accent).frame(width: 32, height: 32).background(PostStyle.selection, in: RoundedRectangle(cornerRadius: 9))
             }.menuStyle(.borderlessButton).fixedSize().pointerHover()
         }.padding(.horizontal, 22).frame(height: 93)
     }
@@ -249,9 +241,9 @@ struct MailWindow: View {
                                 ForEach(store.drafts) { draft in
                                     Button { NSApp.keyWindow?.makeFirstResponder(nil); let flags = NSApp.currentEvent?.modifierFlags ?? []; store.clickMessage(draft.id, shift: flags.contains(.shift), command: flags.contains(.command)) } label: {
                                         VStack(alignment: .leading, spacing: 6) {
-                                            HStack { Text(draft.to.isEmpty ? "No recipient" : draft.to).font(.system(size: store.preferences.listSize ?? 14, weight: .medium)).lineLimit(1); Spacer(); Text(draft.updated.formatted(date: .omitted, time: .shortened)).font(.system(size: 10)).foregroundStyle(.secondary) }
-                                            Text(draft.subject.isEmpty ? "Untitled draft" : draft.subject).font(.system(size: (store.preferences.listSize ?? 14) - 1.5)).lineLimit(1)
-                                            Text(draft.scheduledAt.map { "Scheduled: " + $0.formatted(date: .abbreviated, time: .shortened) } ?? (draft.deliveryState == "uncertain" ? "Check Sent before retrying" : draft.body)).font(.system(size: 12)).lineLimit(1).foregroundStyle(.secondary)
+                                            HStack { Text(draft.to.isEmpty ? "No recipient" : draft.to).font(PostStyle.font(size: store.preferences.listSize ?? 14, weight: .medium)).lineLimit(1); Spacer(); Text(draft.updated.formatted(date: .omitted, time: .shortened)).font(PostStyle.font(size: 10)).foregroundStyle(.secondary) }
+                                            Text(draft.subject.isEmpty ? "Untitled draft" : draft.subject).font(PostStyle.font(size: (store.preferences.listSize ?? 14) - 1.5)).lineLimit(1)
+                                            Text(draft.scheduledAt.map { "Scheduled: " + $0.formatted(date: .abbreviated, time: .shortened) } ?? (draft.deliveryState == "uncertain" ? "Check Sent before retrying" : draft.body)).font(PostStyle.font(size: 12)).lineLimit(1).foregroundStyle(.secondary)
                                         }.padding(.horizontal, 14).padding(.vertical, store.preferences.listDensity == "compact" ? 9 : store.preferences.listDensity == "spacious" ? 21 : 14).frame(maxWidth: .infinity, alignment: .leading)
                                             .background(store.bulkMode && store.bulkIDs.contains(draft.id) ? PostStyle.bulk : store.selectedDraftID == draft.id ? PostStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 10))
                                             .overlay { if store.bulkMode && store.bulkIDs.contains(draft.id) { RoundedRectangle(cornerRadius: 10).strokeBorder(PostStyle.accent.opacity(0.45), lineWidth: 1) } }
@@ -265,7 +257,7 @@ struct MailWindow: View {
             } else if store.awaitingFolderList {
                 Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if store.visibleMessages.isEmpty {
-                VStack(spacing: 12) { Image(systemName: store.search.isEmpty ? "tray" : "magnifyingglass").font(.system(size: 28)).foregroundStyle(.tertiary); Text(store.search.isEmpty ? "No messages here" : "No matching messages").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 12) { Image(systemName: store.search.isEmpty ? "tray" : "magnifyingglass").font(PostStyle.font(size: 28)).foregroundStyle(.tertiary); Text(store.search.isEmpty ? "No messages here" : "No matching messages").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView { LazyVStack(spacing: 0) { ForEach(store.visibleMessages) { message in MessageRow(message: message).id(message.id) }; if store.nextPage != nil { Button("Load more messages") { Task { await store.refresh(more: true) } }.padding(20).disabled(store.busy) } } }
@@ -275,6 +267,7 @@ struct MailWindow: View {
         }.background(PostStyle.background).id(store.folderID)
     }
     private func configurePresentation() {
+        PostPalette.shared.interfaceFont = store.preferences.interfaceFont ?? "SF Pro Display"
         PostStyle.accentName = store.preferences.accentColor ?? "blue"
         PostPalette.shared.hex = store.preferences.accentHex ?? "3B6EA3"
         HTMLDocument.cacheLimit = store.preferences.cacheMode == "fast" ? 120 : 40
@@ -287,13 +280,13 @@ struct MailWindow: View {
     private var footer: some View {
         HStack(spacing: 15) {
             if store.preferences.showShortcutHints != false { ForEach([("previous", ""), ("next", "Navigate"), ("reply", "Reply"), ("label", "Label"), ("trash", "Trash"), ("clear", "Clear selection")], id: \.0) { action, label in
-                HStack(spacing: 5) { Text(store.preferences.shortcuts[action]?.display ?? "").font(.system(size: 10, weight: .medium)).padding(.horizontal, 5).padding(.vertical, 4).background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 4)); if !label.isEmpty { Text(label).font(.system(size: 10)) } }.foregroundStyle(PostStyle.secondary)
+                HStack(spacing: 5) { Text(store.preferences.shortcuts[action]?.display ?? "").font(PostStyle.font(size: 10, weight: .medium)).padding(.horizontal, 5).padding(.vertical, 4).background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 4)); if !label.isEmpty { Text(label).font(PostStyle.font(size: 10)) } }.foregroundStyle(PostStyle.secondary)
             }
             }
-            if store.undoSendID != nil { Button("Undo Send") { store.undoSend() }.font(.system(size: 12, weight: .semibold)) }
+            if store.undoSendID != nil { Button("Undo Send") { store.undoSend() }.font(PostStyle.font(size: 12, weight: .semibold)) }
             Spacer(minLength: 4)
-            Text(store.connected ? store.status : "Preview • local changes only").font(.system(size: 10)).foregroundStyle(PostStyle.secondary).lineLimit(1)
-            if !store.connected { Button("Connect Gmail") { store.showSettings = true }.font(.system(size: 10)) }
+            Text(store.connected ? store.status : "Preview • local changes only").font(PostStyle.font(size: 10)).foregroundStyle(PostStyle.secondary).lineLimit(1)
+            if !store.connected { Button("Connect Gmail") { store.showSettings = true }.font(PostStyle.font(size: 10)) }
         }.padding(.horizontal, 16).padding(.vertical, 10)
     }
 }
@@ -307,10 +300,10 @@ struct MessageRow: View {
             HStack(alignment: .top, spacing: 11) {
                 RoundedRectangle(cornerRadius: 2).fill(message.unread ? PostStyle.accent : .clear).frame(width: 7, height: 7).padding(.top, 6)
                 VStack(alignment: .leading, spacing: 5) {
-                    HStack { Text(SearchHighlight.text(message.senderName, query: store.search)).font(.system(size: store.preferences.listSize ?? 14, weight: message.unread && store.preferences.boldUnread != false ? .bold : .medium)).lineLimit(1); Spacer(); Text(dateLabel).font(.system(size: 10)).foregroundStyle(PostStyle.secondary) }
-                    HStack(spacing: 4) { if message.labels.contains("STARRED") { Image(systemName: "star.fill").font(.system(size: 10)).foregroundStyle(.orange) }; Text(SearchHighlight.text(message.subject, query: store.search)).font(.system(size: (store.preferences.listSize ?? 14) - 1.5, weight: message.unread && store.preferences.boldUnread != false ? .semibold : .regular)).lineLimit(1); let files = message.attachments.filter { $0.contentID == nil }
-                            if !files.isEmpty { Image(systemName: "paperclip").font(.system(size: 10)).foregroundStyle(.secondary) } }
-                    Text(SearchHighlight.text(searchSnippet, query: store.search)).font(.system(size: 12)).foregroundStyle(PostStyle.secondary).lineLimit(1)
+                    HStack { Text(SearchHighlight.text(message.senderName, query: store.search)).font(PostStyle.font(size: store.preferences.listSize ?? 14, weight: message.unread && store.preferences.boldUnread != false ? .bold : .medium)).lineLimit(1); Spacer(); Text(dateLabel).font(PostStyle.font(size: 10)).foregroundStyle(PostStyle.secondary) }
+                    HStack(spacing: 4) { if message.labels.contains("STARRED") { Image(systemName: "star.fill").font(PostStyle.font(size: 10)).foregroundStyle(.orange) }; Text(SearchHighlight.text(message.subject, query: store.search)).font(PostStyle.font(size: (store.preferences.listSize ?? 14) - 1.5, weight: message.unread && store.preferences.boldUnread != false ? .semibold : .regular)).lineLimit(1); let files = message.attachments.filter { $0.contentID == nil }
+                            if !files.isEmpty { Image(systemName: "paperclip").font(PostStyle.font(size: 10)).foregroundStyle(.secondary) } }
+                    Text(SearchHighlight.text(searchSnippet, query: store.search)).font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary).lineLimit(1)
                 }
             }.padding(.horizontal, 14).padding(.vertical, store.preferences.listDensity == "compact" ? 9 : store.preferences.listDensity == "spacious" ? 21 : 15).frame(maxWidth: .infinity, alignment: .leading)
                 .background(store.bulkMode && store.bulkIDs.contains(message.id) ? PostStyle.bulk : !store.bulkMode && store.selectedID == message.id ? PostStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 10))
@@ -373,7 +366,7 @@ struct ReadingPane: View {
             if let selected = store.selected {
                 VStack(spacing: 0) {
                     HStack(spacing: 9) {
-                        Text("\(store.threadMessages.count) \(store.threadMessages.count == 1 ? "message" : "messages")").font(.system(size: 11)).foregroundStyle(PostStyle.secondary)
+                        Text("\(store.threadMessages.count) \(store.threadMessages.count == 1 ? "message" : "messages")").font(PostStyle.font(size: 11)).foregroundStyle(PostStyle.secondary)
                         Spacer()
                         Button { store.newCompose(kind: "reply") } label: { Label("Reply", systemImage: "arrowshape.turn.up.left") }.help(store.preferences.shortcuts["reply"]?.display ?? "Reply")
                         Button { store.showLabels = true } label: { Label("Label", systemImage: "tag") }
@@ -388,7 +381,7 @@ struct ReadingPane: View {
                         } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).fixedSize().pointerHover()
                     }.controlSize(.small).padding(.horizontal, 20).padding(.vertical, 14).frame(height: 61)
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(selected.subject).font(.system(size: 23, weight: .semibold)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                        Text(selected.subject).font(PostStyle.font(size: 23, weight: .semibold)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                         let labels = store.folders.filter { selected.labels.contains($0.id) && ($0.isCustom || $0.id == "CATEGORY_PROMOTIONS") }
                         if !labels.isEmpty { FlowLabelChips(labels: labels) }
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 24).padding(.bottom, 16)
@@ -446,11 +439,11 @@ struct ConversationMessage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top, spacing: 12) {
-                Text(String(message.senderName.prefix(1)).uppercased()).font(.system(size: 20, weight: .medium)).foregroundStyle(PostStyle.background).frame(width: 38, height: 38).background(PostStyle.accent, in: RoundedRectangle(cornerRadius: 9))
+                Text(String(message.senderName.prefix(1)).uppercased()).font(PostStyle.font(size: 20, weight: .medium)).foregroundStyle(PostStyle.background).frame(width: 38, height: 38).background(PostStyle.accent, in: RoundedRectangle(cornerRadius: 9))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(message.senderName).font(.system(size: 14, weight: .semibold))
-                    Text("\(message.senderAddress) · \(message.date.formatted(date: .abbreviated, time: .shortened))").font(.system(size: 11)).foregroundStyle(PostStyle.secondary).textSelection(.enabled)
-                    Text("To: \(message.to)").font(.system(size: 10)).foregroundStyle(PostStyle.secondary).textSelection(.enabled)
+                    Text(message.senderName).font(PostStyle.font(size: 14, weight: .semibold))
+                    Text("\(message.senderAddress) · \(message.date.formatted(date: .abbreviated, time: .shortened))").font(PostStyle.font(size: 11)).foregroundStyle(PostStyle.secondary).textSelection(.enabled)
+                    Text("To: \(message.to)").font(PostStyle.font(size: 10)).foregroundStyle(PostStyle.secondary).textSelection(.enabled)
                 }
                 Spacer()
                 Menu {
@@ -462,26 +455,26 @@ struct ConversationMessage: View {
             }
             if !message.html.isEmpty && !plain {
                 if !allowImages && !store.preferences.remoteImages {
-                    HStack { Text("Remote images are blocked").font(.system(size: 11)).foregroundStyle(.secondary); Spacer(); Button("Load images") { allowImages = true }.controlSize(.small) }
+                    HStack { Text("Remote images are blocked").font(PostStyle.font(size: 11)).foregroundStyle(.secondary); Spacer(); Button("Load images") { allowImages = true }.controlSize(.small) }
                 }
-                HTMLMessage(html: message.html, remoteImages: allowImages || store.preferences.remoteImages, originalColors: originalColors, foldQuotes: true, fontName: store.preferences.readingFont ?? "Helvetica Neue", fontSize: store.preferences.readingSize ?? 15, onReady: { htmlReady = $0 })
+                HTMLMessage(html: message.html, remoteImages: allowImages || store.preferences.remoteImages, originalColors: originalColors, foldQuotes: true, fontName: store.preferences.readingFont ?? "SF Pro Display", fontSize: store.preferences.readingSize ?? 15, onReady: { htmlReady = $0 })
                     .transaction { $0.animation = nil }.padding(.horizontal, 6).frame(minHeight: 100).clipShape(RoundedRectangle(cornerRadius: 7))
             } else {
                 let parts = MessageQuote.split(message.body)
-                Text(detectedLinks(parts.body)).font(.custom(store.preferences.readingFont ?? "Helvetica Neue", size: store.preferences.readingSize ?? 14)).lineSpacing(6).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 6)
+                Text(detectedLinks(parts.body)).font(.custom(store.preferences.readingFont ?? "SF Pro Display", size: store.preferences.readingSize ?? 14)).lineSpacing(6).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 6)
                 if let quote = parts.quote {
                     DisclosureGroup("Quoted message", isExpanded: $showPlainQuote) {
-                        Text(detectedLinks(quote)).font(.system(size: 13)).lineSpacing(5).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 10)
-                    }.font(.system(size: 12)).padding(.horizontal, 6)
+                        Text(detectedLinks(quote)).font(PostStyle.font(size: 13)).lineSpacing(5).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 10)
+                    }.font(PostStyle.font(size: 12)).padding(.horizontal, 6)
                 }
             }
             let files = message.attachments.filter { $0.contentID == nil }
             ForEach(files) { attachment in
                 Button { store.download(attachment, message: message) } label: {
-                    HStack { Image(systemName: "paperclip"); Text(attachment.name); Spacer(); Text(ByteCountFormatter.string(fromByteCount: Int64(attachment.size), countStyle: .file)); Image(systemName: "arrow.down") }.font(.system(size: 11)).padding(9).background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 7))
+                    HStack { Image(systemName: "paperclip"); Text(attachment.name); Spacer(); Text(ByteCountFormatter.string(fromByteCount: Int64(attachment.size), countStyle: .file)); Image(systemName: "arrow.down") }.font(PostStyle.font(size: 11)).padding(9).background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 7))
                 }.buttonStyle(PostButtonStyle()).contextMenu { Button("Save attachment…") { store.download(attachment, message: message) } }
             }
-            Button("Reply") { store.newCompose(kind: "reply", replyingTo: message) }.font(.system(size: 12)).buttonStyle(PostButtonStyle())
+            Button("Reply") { store.newCompose(kind: "reply", replyingTo: message) }.font(PostStyle.font(size: 12)).buttonStyle(PostButtonStyle())
         }
         .onAppear { if ready { onLayoutReady?() } }
         .onChange(of: htmlReady) { _, value in if value { onLayoutReady?() } }
@@ -529,7 +522,7 @@ struct HTMLMessage: View {
     let remoteImages: Bool
     var originalColors = false
     var foldQuotes = false
-    var fontName = "Helvetica Neue"
+    var fontName = "SF Pro Display"
     var fontSize: Double = 15
     var onReady: ((Bool) -> Void)? = nil
     @LocalState private var height: CGFloat = 100
@@ -545,7 +538,7 @@ struct HTMLDocument: NSViewRepresentable {
     let remoteImages: Bool
     var originalColors = false
     var foldQuotes = false
-    var fontName = "Helvetica Neue"
+    var fontName = "SF Pro Display"
     var fontSize: Double = 15
     var onReady: ((Bool) -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
@@ -731,8 +724,8 @@ struct LabelPicker: View {
     @LocalState private var labelAndArchive = true
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack { Text("Apply label").font(.title2.bold()); Spacer(); Button("Done") { store.showLabels = false } }
-            Toggle("Skip the inbox when applying a label", isOn: $labelAndArchive).font(.system(size: 12))
+            HStack { Text("Apply label").font(PostStyle.font(size: 20, weight: .bold)); Spacer(); Button("Done") { store.showLabels = false } }
+            Toggle("Skip the inbox when applying a label", isOn: $labelAndArchive).font(PostStyle.font(size: 12))
             ScrollView { VStack(spacing: 5) { ForEach(store.folders.filter(\.isCustom)) { folder in
                 let targets = store.messages.filter { store.actionIDs.contains($0.id) }; let applied = !targets.isEmpty && targets.allSatisfy { $0.labels.contains(folder.id) }
                 Button { if applied { store.actOnSelected(add: [], remove: [folder.id]) } else { store.actOnSelected(add: [folder.id], remove: labelAndArchive ? ["INBOX"] : [], advance: labelAndArchive) }; store.showLabels = false } label: { HStack { Image(systemName: folder.icon.replacingOccurrences(of: "circle", with: "square")); Text(folder.name); Spacer(); if applied { Image(systemName: "checkmark") } }.padding(11).background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 6)) }.buttonStyle(PostButtonStyle())
@@ -759,7 +752,7 @@ struct ComposePane: View {
     @LocalState private var autosave: Task<Void, Never>?
     @FocusState private var bodyFocused: Bool
     @LocalState private var bodyEditor: NSTextView?
-    @LocalState private var composeFont = "Helvetica Neue"
+    @LocalState private var composeFont = "SF Pro Display"
     @LocalState private var composeSize: Double = 14
     @LocalState private var composeColor = "default"
     @LocalState private var composeSpacing: Double = 3
@@ -773,9 +766,9 @@ struct ComposePane: View {
     }
     var body: some View {
         VStack(spacing: 0) {
-            HStack { Text(draft.quotedText == nil ? "Compose" : "Reply").font(.system(size: 18, weight: .semibold)); Spacer(); if sending { ProgressView().controlSize(.small) }; Button("Save & close") { saveAndClose() }.disabled(sending); Button("Send") { sending = true; Task { if await store.send(draft) { closeEditor() }; sending = false } }.buttonStyle(.borderedProminent).disabled(sending || draft.to.isEmpty || !store.connected); Button { showSchedule = true } label: { Image(systemName: "clock") }.help("Send later").disabled(sending || draft.to.isEmpty || !store.connected) ; Button { confirmDelete = true } label: { Image(systemName: "trash") }.help("Delete draft").disabled(sending) }.padding(20)
+            HStack { Text(draft.quotedText == nil ? "Compose" : "Reply").font(PostStyle.font(size: 18, weight: .semibold)); Spacer(); if sending { ProgressView().controlSize(.small) }; Button("Save & close") { saveAndClose() }.disabled(sending); Button("Send") { sending = true; Task { if await store.send(draft) { closeEditor() }; sending = false } }.buttonStyle(.borderedProminent).disabled(sending || draft.to.isEmpty || !store.connected); Button { showSchedule = true } label: { Image(systemName: "clock") }.help("Send later").disabled(sending || draft.to.isEmpty || !store.connected) ; Button { confirmDelete = true } label: { Image(systemName: "trash") }.help("Delete draft").disabled(sending) }.padding(20)
             Divider()
-            HStack { Text("To").frame(width: 65, alignment: .leading).fixedSize(horizontal: false, vertical: true).foregroundStyle(.secondary); TextField("", text: $draft.to).accessibilityLabel("To").textFieldStyle(.plain); Button("Cc/Bcc") { showCC.toggle() }.buttonStyle(PostButtonStyle()).font(.system(size: 11)).foregroundStyle(.secondary) }.padding(.horizontal, 22).padding(.vertical, 12)
+            HStack { Text("To").frame(width: 65, alignment: .leading).fixedSize(horizontal: false, vertical: true).foregroundStyle(.secondary); TextField("", text: $draft.to).accessibilityLabel("To").textFieldStyle(.plain); Button("Cc/Bcc") { showCC.toggle() }.buttonStyle(PostButtonStyle()).font(PostStyle.font(size: 11)).foregroundStyle(.secondary) }.padding(.horizontal, 22).padding(.vertical, 12)
             if showCC || !draft.cc.isEmpty || !draft.bcc.isEmpty { recipientRow("Cc", text: $draft.cc); recipientRow("Bcc", text: $draft.bcc) }
             Divider().padding(.horizontal, 22)
             HStack { Text("Subject").frame(width: 65, alignment: .leading).fixedSize(horizontal: false, vertical: true).foregroundStyle(.secondary); SubjectInput(text: $draft.subject, onTab: focusBodyStart).frame(height: 22) }.padding(.horizontal, 22).padding(.vertical, 12)
@@ -786,28 +779,28 @@ struct ComposePane: View {
                     RichComposer(text: $draft.body, richData: $draft.richBody, fontName: composeFont, size: composeSize, color: composerNSColor, spacing: composeSpacing, editor: $bodyEditor, focusOnLoad: !draft.to.isEmpty).frame(minHeight: draft.quotedText == nil ? 280 : 170)
                     if let quote = draft.quotedText {
                         VStack(alignment: .leading, spacing: 14) {
-                            HStack { Text(draft.quoteHeading ?? "Previous message").font(.system(size: 11)).foregroundStyle(.secondary); Spacer(); Button("Remove quote") { draft.quotedText = nil; draft.quotedHTML = nil; draft.quoteHeading = nil; scheduleSave() }.font(.system(size: 10)) }
+                            HStack { Text(draft.quoteHeading ?? "Previous message").font(PostStyle.font(size: 11)).foregroundStyle(.secondary); Spacer(); Button("Remove quote") { draft.quotedText = nil; draft.quotedHTML = nil; draft.quoteHeading = nil; scheduleSave() }.font(PostStyle.font(size: 10)) }
                             HStack(alignment: .top, spacing: 16) {
                                 RoundedRectangle(cornerRadius: 1).fill(PostStyle.accent.opacity(0.25)).frame(width: 2)
                                 if let html = draft.quotedHTML, !html.isEmpty { HTMLMessage(html: html, remoteImages: false).frame(minHeight: 330) }
-                                else { Text(detectedLinks(quote)).font(.system(size: 13)).lineSpacing(5).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
+                                else { Text(detectedLinks(quote)).font(PostStyle.font(size: 13)).lineSpacing(5).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
                             }.fixedSize(horizontal: false, vertical: true)
                         }.padding(16).background(PostStyle.sidebar.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
                             .contextMenu { Button("Copy quoted message") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(quote, forType: .string) }; Button("Remove quote") { draft.quotedText = nil; draft.quotedHTML = nil; draft.quoteHeading = nil; scheduleSave() } }
                     }
                 }.padding(20)
             }
-            if !draft.attachments.isEmpty { ScrollView(.horizontal) { HStack { ForEach(draft.attachments) { attachment in HStack { Image(systemName: "paperclip"); Text(attachment.name).lineLimit(1); Button { draft.attachments.removeAll { $0.id == attachment.id }; scheduleSave() } label: { Image(systemName: "xmark") }.buttonStyle(PostButtonStyle()) }.font(.system(size: 11)).padding(8).background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 5)) } }.padding(.horizontal, 18) }.frame(height: 42) }
+            if !draft.attachments.isEmpty { ScrollView(.horizontal) { HStack { ForEach(draft.attachments) { attachment in HStack { Image(systemName: "paperclip"); Text(attachment.name).lineLimit(1); Button { draft.attachments.removeAll { $0.id == attachment.id }; scheduleSave() } label: { Image(systemName: "xmark") }.buttonStyle(PostButtonStyle()) }.font(PostStyle.font(size: 11)).padding(8).background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 5)) } }.padding(.horizontal, 18) }.frame(height: 42) }
             Divider()
-            HStack { Button { attach() } label: { Label("Attach files", systemImage: "paperclip") }; Spacer(); Text(store.connected ? "Drafts save automatically" : "Preview • sending is unavailable").font(.system(size: 11)).foregroundStyle(.secondary) }.padding(16)
+            HStack { Button { attach() } label: { Label("Attach files", systemImage: "paperclip") }; Spacer(); Text(store.connected ? "Drafts save automatically" : "Preview • sending is unavailable").font(PostStyle.font(size: 11)).foregroundStyle(.secondary) }.padding(16)
         }.animation(.easeInOut(duration: 0.22), value: showCC).buttonStyle(PostButtonStyle()).frame(width: embedded ? nil : 760, height: embedded ? nil : 620).frame(maxWidth: .infinity, maxHeight: .infinity).background(PostStyle.background).preferredColorScheme(PostStyle.scheme(store.preferences.appearance)).interactiveDismissDisabled(true)
-        .onAppear { composeFont = store.preferences.composerFont ?? "Helvetica Neue"; composeSize = store.preferences.composerSize ?? 14; composeColor = store.preferences.composerColor ?? "default"; composeSpacing = store.preferences.composerSpacing ?? 3; if let rich = draft.richBody, let text = try? NSAttributedString(data: rich, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil), text.length > 0, let font = text.attribute(.font, at: 0, effectiveRange: nil) as? NSFont { composeFont = font.familyName ?? composeFont; composeSize = font.pointSize }; if !initialized { existedAtOpen = store.drafts.contains { $0.id == draft.id }; initialized = true; if !embedded && !draft.to.isEmpty { DispatchQueue.main.async { focusBodyStart(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { if let editor = NSApp.keyWindow?.firstResponder as? NSTextView { editor.setSelectedRange(NSRange(location: 0, length: 0)); editor.scrollRangeToVisible(NSRange(location: 0, length: 0)) } } } } } }
+        .onAppear { composeFont = store.preferences.composerFont ?? "SF Pro Display"; composeSize = store.preferences.composerSize ?? 14; composeColor = store.preferences.composerColor ?? "default"; composeSpacing = store.preferences.composerSpacing ?? 3; if let rich = draft.richBody, let text = try? NSAttributedString(data: rich, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil), text.length > 0, let font = text.attribute(.font, at: 0, effectiveRange: nil) as? NSFont { composeFont = font.familyName ?? composeFont; composeSize = font.pointSize }; if !initialized { existedAtOpen = store.drafts.contains { $0.id == draft.id }; initialized = true; if !embedded && !draft.to.isEmpty { DispatchQueue.main.async { focusBodyStart(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { if let editor = NSApp.keyWindow?.firstResponder as? NSTextView { editor.setSelectedRange(NSRange(location: 0, length: 0)); editor.scrollRangeToVisible(NSRange(location: 0, length: 0)) } } } } } }
         .onChange(of: bodyEditor != nil) { _, ready in if ready && !draft.to.isEmpty { focusBodyStart() } }
         .popover(isPresented: $showSchedule) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Send later").font(.headline)
+                Text("Send later").font(PostStyle.font(size: 13, weight: .semibold))
                 DatePicker("Send at", selection: $scheduleDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
-                Text("Post sends while running. Overdue mail sends after reopening.").font(.caption).foregroundStyle(.secondary)
+                Text("Post sends while running. Overdue mail sends after reopening.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
                 HStack { Button("Cancel") { showSchedule = false }; Button("Schedule") { if store.queueSend(draft, at: scheduleDate) { showSchedule = false; closeEditor() } }.buttonStyle(.borderedProminent) }
             }.padding(22).frame(width: 400)
         }
@@ -1020,8 +1013,8 @@ struct BulkSelectionPane: View {
     @EnvironmentObject var store: MailStore
     var body: some View {
         VStack(spacing: 18) {
-            Image(systemName: "rectangle.stack").font(.system(size: 32, weight: .light)).foregroundStyle(PostStyle.accent)
-            Text("\(store.bulkIDs.count) \(store.folderID == "DRAFT" ? "drafts" : "messages") selected").font(.system(size: 20, weight: .medium))
+            Image(systemName: "rectangle.stack").font(PostStyle.font(size: 32, weight: .light)).foregroundStyle(PostStyle.accent)
+            Text("\(store.bulkIDs.count) \(store.folderID == "DRAFT" ? "drafts" : "messages") selected").font(PostStyle.font(size: 20, weight: .medium))
             if store.folderID == "DRAFT" {
                 Button { store.perform("trash") } label: { Label("Delete drafts", systemImage: "trash") }.buttonStyle(PostButtonStyle())
             } else {
@@ -1029,10 +1022,10 @@ struct BulkSelectionPane: View {
                 Button { store.showLabels = true } label: { Label("Move to label", systemImage: "tag") }
                 Button { store.actOnSelected(add: [], remove: ["INBOX"], advance: true) } label: { Label("Archive", systemImage: "archivebox") }
                 Button { store.actOnSelected(add: ["TRASH"], remove: ["INBOX"], advance: true) } label: { Label("Trash", systemImage: "trash") }
-            }.buttonStyle(PostButtonStyle()).font(.system(size: 12))
+            }.buttonStyle(PostButtonStyle()).font(PostStyle.font(size: 12))
             }
-            Text("Shift-click to select a range. Command-click to add or remove a message.").font(.system(size: 11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            Button("Clear selection") { store.select(nil) }.font(.system(size: 11))
+            Text("Shift-click to select a range. Command-click to add or remove a message.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Button("Clear selection") { store.select(nil) }.font(PostStyle.font(size: 11))
         }.padding(20).frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

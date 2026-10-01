@@ -25,6 +25,7 @@ struct MailDragSurface: NSViewRepresentable {
                 guard event.type == .leftMouseDragged, let origin = self.origin,
                       hypot(point.x - origin.x, point.y - origin.y) >= 10, let payload = self.payload else { return event }
                 self.origin = nil
+                LabelDragState.shared.payload = payload
                 let item = NSPasteboardItem(); item.setString(payload, forType: .string)
                 let drag = NSDraggingItem(pasteboardWriter: item)
                 let image = NSImage(size: NSSize(width: 240, height: 38), flipped: false) { rect in
@@ -40,6 +41,7 @@ struct MailDragSurface: NSViewRepresentable {
             }
         }
         func removeMonitor() { if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil; origin = nil }
+        func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) { LabelDragState.shared.payload = nil; LabelDragState.shared.target = nil }
         func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation { context == .withinApplication ? .move : [] }
     }
 }
@@ -50,10 +52,11 @@ struct SubjectInput: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSTextField {
         let field = NSTextField(); field.isBordered = false; field.drawsBackground = false
-        field.font = .systemFont(ofSize: 13); field.delegate = context.coordinator
+        field.font = NSFont(name: PostPalette.shared.interfaceFont, size: 13) ?? .systemFont(ofSize: 13); field.delegate = context.coordinator
         field.setAccessibilityLabel("Subject"); return field
     }
-    func updateNSView(_ field: NSTextField, context: Context) { context.coordinator.parent = self; if field.stringValue != text { field.stringValue = text } }
+    func updateNSView(_ field: NSTextField, context: Context) {
+        field.font = NSFont(name: PostPalette.shared.interfaceFont, size: 13) ?? .systemFont(ofSize: 13); context.coordinator.parent = self; if field.stringValue != text { field.stringValue = text } }
     final class Coordinator: NSObject, NSTextFieldDelegate {
         var parent: SubjectInput
         init(_ parent: SubjectInput) { self.parent = parent }
@@ -150,5 +153,47 @@ extension NSColor {
     var postHex: String {
         let rgb = usingColorSpace(.sRGB) ?? .black
         return String(format: "%02X%02X%02X", Int(round(rgb.redComponent * 255)), Int(round(rgb.greenComponent * 255)), Int(round(rgb.blueComponent * 255)))
+    }
+}
+
+final class LabelDragState: ObservableObject {
+    static let shared = LabelDragState()
+    @Published var payload: String?
+    @Published var target: String?
+    @Published var after = false
+}
+struct LabelDropTarget: ViewModifier {
+    let id: String
+    let height: CGFloat
+    let store: MailStore
+    let acceptsMessages: Bool
+    @ObservedObject private var drag = LabelDragState.shared
+    func body(content: Content) -> some View {
+        content.overlay(alignment: drag.after ? .bottom : .top) {
+            if drag.target == id && drag.payload?.hasPrefix("post-label:") == true {
+                RoundedRectangle(cornerRadius: 1).fill(PostStyle.accent).frame(height: 2).padding(.horizontal, 4).allowsHitTesting(false)
+            }
+        }.onDrop(of: [.text], delegate: SidebarDropDelegate(id: id, height: height, store: store, acceptsMessages: acceptsMessages))
+    }
+}
+struct SidebarDropDelegate: DropDelegate {
+    let id: String
+    let height: CGFloat
+    let store: MailStore
+    let acceptsMessages: Bool
+    func validateDrop(info: DropInfo) -> Bool {
+        let payload = LabelDragState.shared.payload ?? ""
+        return payload.hasPrefix("post-label:") ? id != "primary" && store.orderedSidebarLabels.contains(where: { $0.id == id }) : acceptsMessages && payload.hasPrefix("post-mail:")
+    }
+    func dropEntered(info: DropInfo) { update(info) }
+    func dropUpdated(info: DropInfo) -> DropProposal? { update(info); return DropProposal(operation: .move) }
+    private func update(_ info: DropInfo) { LabelDragState.shared.target = id; LabelDragState.shared.after = info.location.y > height / 2 }
+    func dropExited(info: DropInfo) { if LabelDragState.shared.target == id { LabelDragState.shared.target = nil } }
+    func performDrop(info: DropInfo) -> Bool {
+        guard let payload = LabelDragState.shared.payload else { return false }
+        let after = info.location.y > height / 2
+        LabelDragState.shared.target = nil
+        if payload.hasPrefix("post-label:") { return store.reorderSidebarLabel(String(payload.dropFirst(11)), before: id, after: after) }
+        return acceptsMessages && store.handleSidebarDrop([payload], target: id)
     }
 }

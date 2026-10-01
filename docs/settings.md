@@ -50,3 +50,7 @@ Clear downloaded media removes cached attachment bytes and remote images. It pre
 Selected-label notifications match any enabled label. A sender allowlist restricts notifications to the listed email addresses; an empty allowlist accepts all senders. Sender and label filters both apply. Spam, Trash and sent mail never notify.
 
 Quiet hours use your Mac’s local time and can span midnight. Messages received during quiet hours do not produce delayed banners afterward. Post checks for new mail every minute while running; macOS permissions and Focus settings still control delivery.
+
+Interface, composing, and reading fonts have separate controls. Each defaults to SF Pro Display. Interface font is under Appearance; composing and reading fonts are in their respective sections. Existing explicit font choices are preserved.
+
+Dragging a label shows a horizontal insertion line above or below its destination. Message drops still move the mail into the target label.

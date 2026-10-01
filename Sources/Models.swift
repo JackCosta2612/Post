@@ -116,6 +116,7 @@ struct MailPreferences: Codable {
     var groupConversations: Bool? = nil
     var boldUnread: Bool? = nil
     var showShortcutHints: Bool? = nil
+    var interfaceFont: String? = nil
     var readingFont: String? = nil
     var readingSize: Double? = nil
     var listSize: Double? = nil
