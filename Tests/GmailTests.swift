@@ -119,6 +119,19 @@ struct GmailTests {
         MockProtocol.handler = { _ in countCalls += 1; return (200, ["messages": [["id": "x"]]]) }
         _ = try await counted.count(query: "is:unread"); _ = try await counted.count(query: "is:unread")
         check(countCalls == 1, "Repeated folder counts reuse their cached result")
+        let visibleCounts = GmailClient(session: session, client: .init(clientID: "test", clientSecret: "test"), token: .init(access: "test", refresh: "test", expiry: .distantFuture), restore: false)
+        MockProtocol.handler = { request in
+            let path = request.url!.path
+            if path.hasSuffix("/labels") { return (200, ["labels": []]) }
+            if path.hasSuffix("/messages") {
+                let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems?.first { $0.name == "q" }?.value ?? ""
+                return (200, query.contains("-in:trash") && query.contains("-in:spam") ? ["messages": []] : ["messages": [["id": "trashed-promotion"]]])
+            }
+            return (200, ["messagesUnread": 1, "messagesTotal": 1])
+        }
+        let visibleFolders = try await visibleCounts.folders()
+        let promotions = visibleFolders.first { $0.id == "CATEGORY_PROMOTIONS" }!
+        check(promotions.unreadCount == 0 && promotions.totalCount == 0, "Promotions badges exclude messages retained in Trash and Spam")
         print("PASS: \(checks) Gmail integration checks with simulated responses")
     }
 }

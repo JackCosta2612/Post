@@ -223,9 +223,17 @@ actor GmailClient {
         }
         for i in result.indices where result[i].id != "primary" && result[i].id != "all" {
             let id = result[i].id
-            let detail = try await request("labels/\(id)")
-            result[i].unreadCount = detail["messagesUnread"] as? Int ?? 0
-            result[i].totalCount = detail["messagesTotal"] as? Int ?? 0
+            if result[i].isCustom || id == "CATEGORY_PROMOTIONS" || id == "STARRED" || id == "SENT" {
+                // Label metadata includes messages that retain their labels in Trash
+                // or Spam. Count the same visible set used by the message list.
+                let query = result[i].query + " -in:trash -in:spam"
+                result[i].unreadCount = try await count(query: query + " is:unread")
+                result[i].totalCount = try await count(query: query)
+            } else {
+                let detail = try await request("labels/\(id)")
+                result[i].unreadCount = detail["messagesUnread"] as? Int ?? 0
+                result[i].totalCount = detail["messagesTotal"] as? Int ?? 0
+            }
         }
         func rank(_ f: MailFolder) -> Int { if f.id == "primary" { return 0 }; if f.name == "Application confirmations" { return 1 }; if f.name == "Rejections" { return 2 }; if f.id == "CATEGORY_PROMOTIONS" { return 3 }; if f.name == "Newsletters" { return 4 }; if f.isCustom { return 5 }; return 6 + (MailFolder.defaults.firstIndex { $0.id == f.id } ?? 0) }
         let sorted = result.sorted { rank($0) == rank($1) ? $0.name < $1.name : rank($0) < rank($1) }
