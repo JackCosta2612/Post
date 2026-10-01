@@ -1,5 +1,11 @@
 // !$*UTF8*$!
 {archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+32D45FF444A56D1DE0076E40 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Interaction.swift; sourceTree = "<group>"; };
+379EDF16F61032E5B558AD3D = {isa = PBXBuildFile; fileRef = 32D45FF444A56D1DE0076E40; };
+60653EBAB9FF3D518813FEEB = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
+048FE77EC1EC91686AF1F658 = {isa = PBXBuildFile; fileRef = 60653EBAB9FF3D518813FEEB; };
+F0317C4E9D149A2EE63D8960 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Updates.swift; sourceTree = "<group>"; };
+297552BF63B899F1876B5B85 = {isa = PBXBuildFile; fileRef = F0317C4E9D149A2EE63D8960; };
 AA1111111111111111111111 = {isa = PBXFileReference; lastKnownFileType = folder.icon; path = Post.icon; sourceTree = "<group>"; };
 AA2222222222222222222222 = {isa = PBXBuildFile; fileRef = AA1111111111111111111111; };
 7CDA8C8CF9980B745963A4CC = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Setup.md; sourceTree = "<group>"; };
@@ -15,10 +21,10 @@ F85E2370F2BCB7F9EC2B2336 = {isa = PBXFileReference; lastKnownFileType = sourceco
 2B97935E2984DBD78A9F4AD5 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 4AF090DF56D724E72C1CAF6A = {isa = PBXBuildFile; fileRef = 2B97935E2984DBD78A9F4AD5; };
 7D1043473D55BFA90E8530D3 = {isa = PBXFileReference; explicitFileType = wrapper.application; path = Post.app; sourceTree = BUILT_PRODUCTS_DIR; };
-BCE16DD0260827ECF338C787 = {isa = PBXGroup; children = (F85E2370F2BCB7F9EC2B2336,41606732E187A29A3E95BEBF,19BFBC84FD9B2B92C10227AA,41A73C947834DA32B6F85268,2B97935E2984DBD78A9F4AD5); path = Sources; sourceTree = "<group>"; };
+BCE16DD0260827ECF338C787 = {isa = PBXGroup; children = (32D45FF444A56D1DE0076E40,60653EBAB9FF3D518813FEEB,F0317C4E9D149A2EE63D8960,F85E2370F2BCB7F9EC2B2336,41606732E187A29A3E95BEBF,19BFBC84FD9B2B92C10227AA,41A73C947834DA32B6F85268,2B97935E2984DBD78A9F4AD5); path = Sources; sourceTree = "<group>"; };
 FBDC4F23F93125BBEEAE800C = {isa = PBXGroup; children = (7D1043473D55BFA90E8530D3); name = Products; sourceTree = "<group>"; };
 DC76E9F0C0006E8F919E0C51 = {isa = PBXGroup; children = (AA1111111111111111111111,7CDA8C8CF9980B745963A4CC,BCE16DD0260827ECF338C787, FBDC4F23F93125BBEEAE800C); sourceTree = "<group>"; };
-FE77C82BB2A42EFEEC930360 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (2274FFC166682041AE64BEAA,8F3E6B802A34B71B04F5D0C7,487C502A5481E87001E8CC43,540BBD8DCA599D7FDEDDA151,4AF090DF56D724E72C1CAF6A); runOnlyForDeploymentPostprocessing = 0; };
+FE77C82BB2A42EFEEC930360 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (379EDF16F61032E5B558AD3D,048FE77EC1EC91686AF1F658,297552BF63B899F1876B5B85,2274FFC166682041AE64BEAA,8F3E6B802A34B71B04F5D0C7,487C502A5481E87001E8CC43,540BBD8DCA599D7FDEDDA151,4AF090DF56D724E72C1CAF6A); runOnlyForDeploymentPostprocessing = 0; };
 0189424A5A60FED329FA868E = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (AA2222222222222222222222,08338D35FB4FCC1478E4D17F); runOnlyForDeploymentPostprocessing = 0; };
 0E8A3AD980EC179856012B7E = {isa = PBXNativeTarget; buildConfigurationList = 011485B2EE57B7D61ACA51C9; buildPhases = (FE77C82BB2A42EFEEC930360,0189424A5A60FED329FA868E); buildRules = (); dependencies = (); name = Post; productName = Post; productReference = 7D1043473D55BFA90E8530D3; productType = "com.apple.product-type.application"; };
 98F54143AB4E86B28C3AFEE0 = {isa = PBXProject; attributes = {LastUpgradeCheck = 2700;}; buildConfigurationList = 15FD5A6CB082B2EEE99CAC7F; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = DC76E9F0C0006E8F919E0C51; productRefGroup = FBDC4F23F93125BBEEAE800C; projectDirPath = ""; projectRoot = ""; targets = (0E8A3AD980EC179856012B7E); };

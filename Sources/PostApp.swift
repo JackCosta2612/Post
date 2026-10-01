@@ -14,6 +14,14 @@ struct PostApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1370, height: 860)
         .commands {
+            CommandGroup(after: .appInfo) { Button("Check for updates…") { PostUpdates.shared.openAccount = true; store.showSettings = true; Task { await PostUpdates.shared.check() } } }
+            CommandGroup(after: .toolbar) {
+                Menu("Appearance") {
+                    ForEach(["system", "light", "dark"], id: \.self) { value in
+                        Button(value.capitalized) { store.preferences.appearance = value }
+                    }
+                }
+            }
             CommandGroup(replacing: .newItem) { action("Compose", "compose") }
             CommandGroup(replacing: .appSettings) { Button("Settings…") { store.showSettings = true }.keyboardShortcut(",", modifiers: .command) }
             CommandGroup(replacing: .undoRedo) { Button("Undo mail change") { store.undo() }.keyboardShortcut("z", modifiers: .command).disabled(store.lastUndo == nil) }

@@ -10,6 +10,11 @@ SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
 ARCH="$(uname -m)"
 xcrun swiftc -swift-version 5 -O -parse-as-library -module-name Post -module-cache-path "$BUILD_DIR/module-cache" -sdk "$SDK_PATH" -target "$ARCH-apple-macos14.0" "$PROJECT_DIR"/Sources/*.swift -o "$APP_DIR/Contents/MacOS/Post"
 cp "$PROJECT_DIR/Info.plist" "$APP_DIR/Contents/Info.plist"
+RELEASE_VERSION="$(tr -d '\n' < "$PROJECT_DIR/VERSION")"
+if [[ ! "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "Invalid VERSION"; exit 1; fi
+BUILD_NUMBER="$(git -C "$PROJECT_DIR" rev-list --count HEAD)"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $RELEASE_VERSION" "$APP_DIR/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP_DIR/Contents/Info.plist"
 if [[ "${POST_DEMO_BUILD:-0}" == "1" ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.jack.Post.demo" "$APP_DIR/Contents/Info.plist"
   /usr/libexec/PlistBuddy -c "Set :CFBundleName Post Demo" "$APP_DIR/Contents/Info.plist"

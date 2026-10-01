@@ -13,6 +13,7 @@ struct FlowLabelChips: View {
 }
 
 struct SettingsPane: View {
+    @ObservedObject private var updates = PostUpdates.shared
     @ObservedObject private var palette = PostPalette.shared
     @EnvironmentObject var store: MailStore
     @LocalState private var section = "Appearance"
@@ -36,7 +37,7 @@ struct SettingsPane: View {
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(28)
             }
         }.buttonStyle(PostButtonStyle()).tint(Color(nsColor: .labelColor)).foregroundStyle(.primary).font(PostStyle.font(size: 13)).frame(width: 810, height: 730).background(PostStyle.background).preferredColorScheme(PostStyle.scheme(store.preferences.appearance))
-        .onAppear { store.refreshNotificationStatus(); updateCacheSize() }
+        .onAppear { if updates.openAccount { section = "Account"; updates.openAccount = false }; store.refreshNotificationStatus(); updateCacheSize() }
         .onDisappear { store.recordingShortcut = nil }
         .postPrompt("Clear downloaded media?", isPresented: $clearMediaPrompt, message: "Messages, drafts, attachments saved to Downloads, and settings stay on this Mac. Cached images and attachment downloads will load again when needed.", actions: ["Clear", "Cancel"]) { response in
             if response == 0 { store.clearDownloadedMedia(); PostImageLoader.shared.clear(); HTMLDocument.clearRenderedCache(); updateCacheSize() }
