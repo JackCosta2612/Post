@@ -396,6 +396,9 @@ struct ReadingPane: View {
                         ScrollView {
                             LazyVStack(alignment: .leading, spacing: 16) {
                                 ForEach(store.threadMessages) { message in
+                                    if message.id != store.threadMessages.first?.id {
+                                        Rectangle().fill(PostStyle.accent.opacity(0.5)).frame(height: 1).padding(.horizontal, 18).accessibilityHidden(true)
+                                    }
                                     ConversationMessage(message: message, plain: plain, onLayoutReady: { settleCenter(proxy, readyID: message.id) })
                                         .id(message.id)
                                         .padding(18)
