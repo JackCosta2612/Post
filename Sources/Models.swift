@@ -1,7 +1,9 @@
 import Foundation
+import AppKit
 
 struct MailAttachment: Codable, Identifiable, Equatable {
     var id: String
+    var cachedFile: String? = nil
     var name: String
     var mimeType: String
     var size: Int
@@ -109,6 +111,31 @@ struct Shortcut: Codable, Equatable {
 }
 
 struct MailPreferences: Codable {
+    var undoSendDelay: Int? = nil
+    var readDelay: Int? = nil
+    var groupConversations: Bool? = nil
+    var boldUnread: Bool? = nil
+    var showShortcutHints: Bool? = nil
+    var readingFont: String? = nil
+    var readingSize: Double? = nil
+    var listSize: Double? = nil
+    var listDensity: String? = nil
+    var composerFont: String? = nil
+    var composerSize: Double? = nil
+    var composerColor: String? = nil
+    var composerSpacing: Double? = nil
+    var accentColor: String? = nil
+    var accentHex: String? = nil
+    var cacheMode: String? = nil
+    var labelShortcuts: [String: Shortcut]? = nil
+    var notificationLabels: Set<String>? = nil
+    var notificationSenders: String? = nil
+    var quietHours: Bool? = nil
+    var quietStart: Int? = nil
+    var quietEnd: Int? = nil
+    var showNotificationSender: Bool? = nil
+    var showNotificationSubject: Bool? = nil
+    var showNotificationBody: Bool? = nil
     var sidebarLabelOrder: [String]? = nil
     var sidebarBadges: Bool? = nil
     var hiddenSidebarLabels: Set<String>? = nil
@@ -131,6 +158,10 @@ struct MailPreferences: Codable {
 
 struct ComposeDraft: Codable, Identifiable {
     var id: String = UUID().uuidString
+    var scheduledAt: Date?
+    var deliveryState: String?
+    var deliveryKind: String?
+    var richBody: Data?
     var gmailDraftID: String?
     var to: String = ""
     var cc: String = ""
@@ -147,7 +178,7 @@ struct ComposeDraft: Codable, Identifiable {
     var attachments: [MailAttachment] = []
     func hasUserChanges(from baseline: ComposeDraft) -> Bool {
         func clean(_ value: String) -> String { value.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return clean(body) != clean(baseline.body) || clean(to) != clean(baseline.to) || clean(cc) != clean(baseline.cc) || clean(bcc) != clean(baseline.bcc) || clean(subject) != clean(baseline.subject) || attachments != baseline.attachments
+        return clean(body) != clean(baseline.body) || clean(to) != clean(baseline.to) || clean(cc) != clean(baseline.cc) || clean(bcc) != clean(baseline.bcc) || clean(subject) != clean(baseline.subject) || (!clean(body).isEmpty && richBody != baseline.richBody) || attachments != baseline.attachments
     }
     mutating func separateLegacyQuote() {
         guard quotedText == nil, let start = body.range(of: "\n\nOn "), let headingEnd = body.range(of: " wrote:\n", range: start.upperBound..<body.endIndex) else { return }
@@ -218,10 +249,19 @@ enum MIMEBuilder {
         let plain = draft.body + (draft.quotedText.map { "\n\n" + (draft.quoteHeading ?? "Previous message") + "\n" + $0 } ?? "")
         let base64: (String) -> String = { Data($0.utf8).base64EncodedString(options: [.lineLength76Characters, .endLineWithCarriageReturn, .endLineWithLineFeed]) }
         var s = h.joined(separator: "\r\n") + "\r\n\r\n--\(boundary)\r\n"
-        if let quote = draft.quotedText {
+        if draft.quotedText != nil || draft.richBody != nil {
+            let quote = draft.quotedText ?? ""
             let alternative = "alternative-\(UUID().uuidString)"
             let original = draft.quotedHTML ?? "<div style='white-space:pre-wrap'>\(htmlEscape(quote))</div>"
-            let html = "<div style='white-space:pre-wrap'>\(htmlEscape(draft.body))</div><br><div>\(htmlEscape(draft.quoteHeading ?? "Previous message"))</div><blockquote style='border-left:2px solid #bccbd9;padding-left:16px;margin-left:0'>\(original)</blockquote>"
+            let formatted = draft.richBody.flatMap { try? NSAttributedString(data: $0, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil) }
+            let richHTML = formatted.flatMap { try? $0.data(from: NSRange(location: 0, length: $0.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.html]) }.flatMap { String(data: $0, encoding: .utf8) }
+            let content = richHTML.flatMap { value -> String? in
+                guard let start = value.range(of: "<body"), let open = value.range(of: ">", range: start.lowerBound..<value.endIndex), let end = value.range(of: "</body>") else { return nil }
+                // Apple's HTML exporter uses CSS classes. Preserve its style block with the body.
+                let styles = value.range(of: "<style", options: .caseInsensitive).flatMap { a in value.range(of: "</style>", options: .caseInsensitive).map { String(value[a.lowerBound..<$0.upperBound]) } } ?? ""
+                return styles + String(value[open.upperBound..<end.lowerBound])
+            } ?? "<div style='white-space:pre-wrap'>\(htmlEscape(draft.body))</div>"
+            let html = content + (draft.quotedText == nil ? "" : "<br><div>\(htmlEscape(draft.quoteHeading ?? "Previous message"))</div><blockquote style='border-left:2px solid #bccbd9;padding-left:16px;margin-left:0'>\(original)</blockquote>")
             s += "Content-Type: multipart/alternative; boundary=\"\(alternative)\"\r\n\r\n--\(alternative)\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n\(base64(plain))\r\n--\(alternative)\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n\(base64(html))\r\n--\(alternative)--"
         } else {
             s += "Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" + base64(plain)

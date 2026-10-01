@@ -27,8 +27,11 @@ See [build and signing instructions](docs/build.md) for prerequisites, Keychain 
 
 ## Features
 
-- Light, Dark, or System appearance. Collapsible sidebar with unread or total counts.
+- Light, Dark, or System appearance, custom accent colors, adjustable text size and density, and optional bold unread messages.
 - Customize label visibility, numbered badges, and unread or total counts in Settings → Sidebar. Drag labels to reorder them; Primary stays first. Mail filters stay pinned at the bottom while overflowing labels scroll above them.
+- Undo Send with a configurable delay, local scheduled sending, and a rich text composer with custom fonts, colors, and formatting.
+- Configurable read delay, conversation grouping, label shortcuts, notification filters and quiet hours.
+- Balanced or Faster caching for messages, threads, images, and attachments. See [Settings](docs/settings.md).
 - Drag one message or a selection onto a label to move it, onto Primary to return it to the inbox, or onto Trash to discard it. Moves can be undone.
 - Primary includes unlabeled inbox mail. Choose multiple labels to include in Settings → Inbox; custom labels and Promotions are excluded by default, including newly created labels. Gmail's own Primary category is also available.
 - Conversations show incoming mail and sent replies in chronological order. They open at the selected message, with quoted replies collapsed and a reply control on each message.
@@ -59,7 +62,7 @@ Typing keeps normal cursor and editing behavior. Escape after editing a reply of
 
 ## Data and limitations
 
-OAuth credentials stay in macOS Keychain. Cached messages, attachment bytes already downloaded, drafts, and preferences live in `~/Library/Application Support/Post/mail-cache.json`. The cache is local JSON, not a separately encrypted database. Remote attachment bytes are fetched when needed. Attachment clicks download directly to Downloads, with a configurable destination in Settings. HTML runs without sender-provided JavaScript.
+OAuth credentials stay in macOS Keychain. Cached messages, drafts, schedules, and preferences live in `~/Library/Application Support/Post/mail-cache.json`. Faster mode stores downloaded attachment bytes separately in `AttachmentCache`; remote images use `RemoteImages` under the same folder. The cache is local JSON, not a separately encrypted database. Remote attachment bytes are fetched when needed. Attachment clicks download directly to Downloads, with a configurable destination in Settings. HTML runs without sender-provided JavaScript.
 
 Disconnecting removes the sign-in token but keeps cached mail. To remove local mail too, quit Post and remove its Application Support folder. Revoke the authorization in your Google account if you no longer use the app.
 

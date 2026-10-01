@@ -1,8 +1,25 @@
 import Foundation
+import AppKit
+
+final class DeliveryMock: URLProtocol, @unchecked Sendable {
+    static var sends = 0
+    static var fail = false
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let sending = request.url!.path.hasSuffix("messages/send")
+        if sending { Self.sends += 1 }
+        let value: [String: Any] = request.url!.path.hasSuffix("profile") ? ["emailAddress": "sender@example.com"] : sending ? ["id": "sent-test", "threadId": "sent-thread"] : ["id": "sent-test", "threadId": "sent-thread", "labelIds": ["SENT"], "payload": ["headers": [["name": "Subject", "value": "Scheduled"]]]]
+        let status = sending && Self.fail ? 400 : 200
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: try! JSONSerialization.data(withJSONObject: value)); client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
 
 @main
 struct BehaviorTests {
-    @MainActor static func main() throws {
+    @MainActor static func main() async throws {
         var checks = 0
         func check(_ result: @autoclosure () -> Bool, _ name: String) {
             checks += 1
@@ -300,6 +317,92 @@ struct BehaviorTests {
         dragStore.undo()
         check(dragStore.messages[0].labels == ["INBOX"], "Drag move supports Undo")
         check(!dragStore.handleSidebarDrop(["unrelated text"], target: "primary"), "External text cannot move mail")
+        let settingsStore = MailStore(directory: directory.appendingPathComponent("settings"))
+        settingsStore.preferences.markRead = false
+        settingsStore.preferences.groupConversations = false
+        settingsStore.messages = [incoming, outgoing]; settingsStore.select(incoming.id)
+        check(settingsStore.threadMessages.map(\.id) == [incoming.id], "Ungrouped reading displays only selected message")
+        settingsStore.preferences.groupConversations = true
+        check(settingsStore.threadMessages.count == 2, "Grouping can be restored without losing conversation")
+        settingsStore.messages[0].labels.insert("UNREAD"); settingsStore.messages[1].labels.insert("UNREAD")
+        settingsStore.preferences.markRead = true; settingsStore.preferences.readDelay = 1
+        settingsStore.select(incoming.id)
+        check(settingsStore.messages[0].unread, "Delayed read does not mark immediately")
+        settingsStore.select(nil)
+        try await Task.sleep(nanoseconds: 1_100_000_000)
+        check(settingsStore.messages[0].unread, "Leaving message cancels read timer")
+        settingsStore.select(incoming.id)
+        try await Task.sleep(nanoseconds: 1_100_000_000)
+        check(settingsStore.messages.allSatisfy { !$0.unread }, "Read delay marks opened conversation after elapsed time")
+        settingsStore.preferences.markRead = false
+        settingsStore.preferences.hiddenSidebarLabels = ["rejections"]
+        check(settingsStore.reorderSidebarLabel("rejections", before: "Newsletters", after: true) == false, "Unknown reorder targets are rejected")
+        check(settingsStore.reorderSidebarLabel("rejections", before: "confirmations", after: true), "Hidden labels can be reordered in settings")
+        check(settingsStore.orderedSidebarLabels.firstIndex { $0.id == "rejections" }! > settingsStore.orderedSidebarLabels.firstIndex { $0.id == "confirmations" }!, "Reorder supports insertion after target")
+        check(settingsStore.setLabelShortcut("primary", value: Shortcut(key: "0", command: true)), "Label shortcut accepts free Command key")
+        check(!settingsStore.setLabelShortcut("primary", value: Shortcut(key: "v", command: true)), "Label shortcut reserves paste")
+        var notification = settingsStore.messages[0]; notification.labels = ["UNREAD", "confirmations"]
+        settingsStore.preferences.notificationScope = "labels"; settingsStore.preferences.notificationLabels = ["confirmations"]
+        check(settingsStore.notificationMatches(notification), "Selected-label notification scope matches")
+        notification.labels = ["UNREAD", "rejections"]
+        check(!settingsStore.notificationMatches(notification), "Notification excludes unselected labels")
+        notification.labels = ["UNREAD", "confirmations"]
+        settingsStore.preferences.notificationSenders = "other@example.com"
+        check(!settingsStore.notificationMatches(notification), "Sender allowlist excludes other senders")
+        settingsStore.preferences.notificationSenders = MailMessage.address(notification.from)
+        check(settingsStore.notificationMatches(notification), "Sender allowlist accepts matching address")
+        settingsStore.preferences.quietHours = true; settingsStore.preferences.quietStart = 22; settingsStore.preferences.quietEnd = 8
+        let midnight = Calendar.current.startOfDay(for: Date())
+        check(!settingsStore.notificationMatches(notification, now: midnight), "Quiet hours span midnight")
+        check(settingsStore.notificationMatches(notification, now: midnight.addingTimeInterval(12 * 3600)), "Quiet hours allow midday")
+        var queued = ComposeDraft(to: "recipient@example.com", subject: "Later", body: "Scheduled content")
+        check(settingsStore.queueSend(queued, at: Date().addingTimeInterval(3600)), "Future send is queued")
+        settingsStore.flushCache()
+        let restored = MailStore(directory: settingsStore.directory)
+        check(restored.drafts.first { $0.id == queued.id }?.scheduledAt != nil, "Scheduled delivery survives reopening")
+        settingsStore.cancelScheduled(queued.id)
+        check(settingsStore.drafts.first { $0.id == queued.id }?.scheduledAt == nil, "Schedule can be canceled without deleting draft")
+        check(!settingsStore.queueSend(queued, at: Date().addingTimeInterval(-1)), "Past schedules are rejected")
+        check(settingsStore.queueSend(queued, at: Date().addingTimeInterval(30), kind: "undo"), "Undo delay queues a message")
+        settingsStore.undoSend()
+        check(settingsStore.compose?.id == queued.id && settingsStore.undoSendID == nil && settingsStore.drafts.first { $0.id == queued.id }?.scheduledAt == nil, "Undo Send restores composer and cancels delivery")
+        let fontText = NSAttributedString(string: "Formatted text", attributes: [.font: NSFont(name: "Georgia", size: 18)!, .foregroundColor: NSColor.systemBlue, .underlineStyle: 1])
+        queued.richBody = try fontText.data(from: NSRange(location: 0, length: fontText.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf])
+        queued.body = fontText.string
+        let richMIME = String(data: try MIMEBuilder.build(queued, from: "sender@example.com"), encoding: .utf8)!
+        check(richMIME.contains("multipart/alternative") && richMIME.contains("Content-Type: text/html"), "Formatted composer sends both plain and HTML alternatives")
+        let retainedDraft = settingsStore.drafts.count
+        settingsStore.clearDownloadedMedia()
+        check(settingsStore.drafts.count == retainedDraft && !settingsStore.messages.isEmpty, "Cache clearing preserves drafts and messages")
+        settingsStore.preferences.cacheMode = "fast"
+        settingsStore.messages[0].attachments = [.init(id: "cached-file", name: "report.pdf", mimeType: "application/pdf", size: 5, data: Data("bytes".utf8))]
+        settingsStore.persist(); settingsStore.flushCache()
+        let external = MailStore(directory: settingsStore.directory)
+        check(external.messages.first { $0.id == settingsStore.messages[0].id }?.attachments.first?.data == Data("bytes".utf8), "Faster cache restores attachment bytes from disk")
+        let metadata = try JSONDecoder().decode(MailCache.self, from: Data(contentsOf: settingsStore.directory.appendingPathComponent("mail-cache.json")))
+        check(metadata.messages.first { $0.id == settingsStore.messages[0].id }?.attachments.first?.data == nil && metadata.messages.first { $0.id == settingsStore.messages[0].id }?.attachments.first?.cachedFile != nil, "Faster cache avoids rewriting attachment bytes inside metadata")
+        check(!settingsStore.setShortcut("compose", value: Shortcut(key: "0", command: true)), "Action shortcuts cannot conflict with label shortcuts")
+        let emptyReply = ComposeDraft(to: "recipient@example.com", subject: "Reply")
+        var styledEmpty = emptyReply; styledEmpty.richBody = Data("empty styling".utf8)
+        check(!styledEmpty.hasUserChanges(from: emptyReply), "Formatting an empty reply does not create a draft")
+        let deliveryConfig = URLSessionConfiguration.ephemeral; deliveryConfig.protocolClasses = [DeliveryMock.self]
+        let fakeGmail = GmailClient(session: URLSession(configuration: deliveryConfig), client: .init(clientID: "test.apps.googleusercontent.com", clientSecret: "test"), token: .init(access: "test-access", refresh: "test-refresh", expiry: Date().addingTimeInterval(3600)), restore: false)
+        let delivery = MailStore(directory: directory.appendingPathComponent("delivery"), gmailClient: fakeGmail)
+        delivery.connected = true
+        let scheduled = ComposeDraft(to: "recipient@example.com", subject: "Scheduled", body: "Test content")
+        check(delivery.queueSend(scheduled, at: Date().addingTimeInterval(10)), "Delivery queue accepts connected mail")
+        await delivery.processScheduled(now: Date().addingTimeInterval(20))
+        check(DeliveryMock.sends == 1 && !delivery.drafts.contains { $0.id == scheduled.id }, "Due delivery sends once and removes queued draft")
+        await delivery.processScheduled(now: Date().addingTimeInterval(30))
+        check(DeliveryMock.sends == 1, "Completed schedule cannot send twice")
+        DeliveryMock.fail = true
+        let failing = ComposeDraft(to: "recipient@example.com", subject: "Failure", body: "Test content")
+        _ = delivery.queueSend(failing, at: Date().addingTimeInterval(10))
+        await delivery.processScheduled(now: Date().addingTimeInterval(20))
+        check(delivery.drafts.first { $0.id == failing.id }?.deliveryState == "uncertain", "Unconfirmed delivery is preserved for manual review")
+        let attempts = DeliveryMock.sends
+        await delivery.processScheduled(now: Date().addingTimeInterval(30))
+        check(DeliveryMock.sends == attempts, "Unconfirmed delivery is never retried automatically")
         print("PASS: \(checks) behavioral checks")
     }
 }

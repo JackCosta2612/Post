@@ -52,12 +52,18 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
     static var promptCount = 0
     weak var store: MailStore?
     private var monitor: Any?
+    private var flagsMonitor: Any?
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Let macOS select the catalog's light, dark, and Liquid Glass variants.
         // Assigning a static NSImage here overrides that system appearance handling.
         UNUserNotificationCenter.current().delegate = self
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            self?.store?.commandHeld = event.modifierFlags.contains(.command)
+            return event
+        }
+        NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.store?.commandHeld = false } }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in guard let self else { return event }; return self.handle(event) }
     }
     func connect(_ store: MailStore) { self.store = store }
@@ -85,6 +91,7 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
         guard let store, let shortcut = Shortcut.fromEvent(event) else { return event }
         if let action = store.recordingShortcut {
             if [Shortcut(key: "q", command: true), Shortcut(key: "w", command: true), Shortcut(key: ",", command: true)].contains(shortcut) { store.error = "That shortcut belongs to macOS. Choose another one." }
+            else if action.hasPrefix("label:") { _ = store.setLabelShortcut(String(action.dropFirst(6)), value: shortcut) }
             else { _ = store.setShortcut(action, value: shortcut) }
             store.recordingShortcut = nil; return nil
         }
@@ -95,9 +102,13 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
         guard store.compose == nil else { return event }
         let isEditing = NSApp.keyWindow?.firstResponder is NSTextView || NSApp.keyWindow?.firstResponder is NSTextField
         if shortcut == store.preferences.shortcuts["clear"] { NSApp.keyWindow?.makeFirstResponder(nil); store.perform("clear"); return nil }
-        if isEditing { return event }
+        if isEditing || store.selectedDraftID != nil { return event }
         if shortcut.shift, !shortcut.command, !shortcut.option, ["up", "down"].contains(shortcut.key) {
             store.extendNavigation(shortcut.key == "down" ? 1 : -1); return nil
+        }
+        if store.selectedID == nil, store.selectedDraftID == nil,
+           let label = store.shortcutLabels().first(where: { $0.1 == shortcut })?.0 {
+            store.chooseFolder(label.id); return nil
         }
         guard let action = store.preferences.shortcuts.first(where: { $0.value == shortcut })?.key else { return event }
         store.perform(action); return nil
