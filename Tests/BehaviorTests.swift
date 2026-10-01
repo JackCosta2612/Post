@@ -238,6 +238,24 @@ struct BehaviorTests {
         threadStore.flushCache()
         let darkStore = MailStore(directory: directory.appendingPathComponent("threads"))
         check(darkStore.preferences.appearance == "dark", "Appearance choice persists")
+        let primaryStore = MailStore(directory: directory.appendingPathComponent("primary-labels"))
+        var labeled = primaryStore.messages[0]; labeled.labels = ["INBOX", "confirmations"]
+        check(!primaryStore.contains(primaryStore.folders[0], labeled), "Confirmations excluded from Primary by default")
+        primaryStore.setPrimaryLabel("confirmations", included: true)
+        check(primaryStore.contains(primaryStore.folders[0], labeled), "Enabled label included in Primary")
+        labeled.labels.insert("rejections")
+        check(!primaryStore.contains(primaryStore.folders[0], labeled), "Any excluded label keeps mail out of Primary")
+        primaryStore.setPrimaryLabel("rejections", included: true)
+        check(primaryStore.contains(primaryStore.folders[0], labeled), "Multiple enabled labels allowed in Primary")
+        primaryStore.folders.append(.init(id: "new-label", name: "New label", icon: "tag", query: "label:\"New label\"", isCustom: true))
+        labeled.labels = ["INBOX", "new-label"]
+        check(!primaryStore.contains(primaryStore.folders[0], labeled), "New labels excluded by default")
+        check(primaryStore.primaryQuery.contains("-label:\"New label\""), "Remote query excludes newly discovered label")
+        labeled.labels = ["INBOX", "CATEGORY_UPDATES"]
+        check(primaryStore.contains(primaryStore.folders[0], labeled), "Unlabeled Updates remain in wide Primary")
+        primaryStore.persist(); primaryStore.flushCache()
+        let primaryReload = MailStore(directory: directory.appendingPathComponent("primary-labels"))
+        check(primaryReload.primaryIncludedLabels == ["confirmations", "rejections"], "Primary label choices persist")
         print("PASS: \(checks) behavioral checks")
     }
 }

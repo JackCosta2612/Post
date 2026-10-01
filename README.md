@@ -28,7 +28,7 @@ See [build and signing instructions](docs/build.md) for prerequisites, Keychain 
 ## Features
 
 - Light, Dark, or System appearance. Collapsible sidebar with unread or total counts.
-- Primary shows inbox mail except Promotions and a label named Newsletters. Gmail's own Primary category is available in settings.
+- Primary includes unlabeled inbox mail. Choose multiple labels to include in Settings → General; custom labels and Promotions are excluded by default, including newly created labels. Gmail's own Primary category is also available.
 - Conversations show incoming mail and sent replies in chronological order. They open at the selected message, with quoted replies collapsed and a reply control on each message.
 - Shift-click, Command-click, and Shift-arrow selection. Bulk label, archive, and Trash without checkboxes.
 - Compose, reply, reply all, forward, attachments, autosaved drafts, and confirmed draft deletion.

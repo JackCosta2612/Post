@@ -117,6 +117,7 @@ struct MailPreferences: Codable {
     var shortcuts = Shortcut.defaults
     var signature = ""
     var primaryMode: String? = nil
+    var primaryIncludedLabels: Set<String>? = nil
     var appearance: String? = nil
     var downloadDirectory: String? = nil
     var notificationScope: String? = nil

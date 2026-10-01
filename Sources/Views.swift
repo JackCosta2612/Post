@@ -133,6 +133,16 @@ struct MailWindow: View {
                                 .frame(width: store.preferences.collapsed ? 44 : 264, alignment: .leading).clipped()
                                 .background(selected ? PostStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 10))
                                 .foregroundStyle(selected ? PostStyle.accent : .primary)
+                                .overlay(alignment: .topTrailing) {
+                                    if store.preferences.collapsed && count > 0 {
+                                        Text(count > 99 ? "99+" : String(count))
+                                            .font(.system(size: 9, weight: .semibold)).monospacedDigit()
+                                            .foregroundStyle(.white).padding(.horizontal, 4)
+                                            .frame(minWidth: 16, minHeight: 16)
+                                            .background(PostStyle.accent, in: RoundedRectangle(cornerRadius: 5))
+                                            .offset(x: 3, y: -2).allowsHitTesting(false)
+                                    }
+                                }
                         }.buttonStyle(PostButtonStyle(inset: 0, selected: selected))
                             .accessibilityLabel(folder.name).help("\(folder.name): \(count) \(store.preferences.totalCounts ? "messages" : "unread messages")")
                             .contextMenu {
@@ -740,7 +750,16 @@ struct SettingsPane: View {
                 if section == "General" {
                     HStack { VStack(alignment: .leading, spacing: 5) { Text("Sidebar counts").fontWeight(.medium); Text("The number beside each label uses this setting.").font(.system(size: 11)).foregroundStyle(.secondary) }; Spacer(); Picker("", selection: $store.preferences.totalCounts) { Text("Unread").tag(false); Text("Total").tag(true) }.pickerStyle(.segmented).frame(width: 170) }
                     Divider()
-                    Picker("Primary view", selection: Binding(get: { store.preferences.primaryMode ?? "wide" }, set: { store.preferences.primaryMode = $0; store.currentRemoteIDs = nil; store.select(nil); if store.connected { Task { await store.refresh() } } else { store.updateLocalCounts() } })) { Text("Gmail Primary category").tag("gmail"); Text("Inbox except Promotions and Newsletters").tag("wide") }
+                    Picker("Primary view", selection: Binding(get: { store.preferences.primaryMode ?? "wide" }, set: { store.preferences.primaryMode = $0; store.primarySettingsChanged() })) { Text("Gmail Primary category").tag("gmail"); Text("All inbox categories").tag("wide") }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Labels included in Primary").fontWeight(.medium)
+                        Text("Unlabeled inbox mail is included. New labels are excluded until you enable them.").font(.system(size: 11)).foregroundStyle(.secondary)
+                        ScrollView { VStack(alignment: .leading, spacing: 8) {
+                            ForEach(store.primaryLabelChoices) { label in
+                                Toggle(label.name, isOn: Binding(get: { store.primaryIncludedLabels.contains(label.id) }, set: { store.setPrimaryLabel(label.id, included: $0) }))
+                            }
+                        } }.frame(height: min(150, CGFloat(store.primaryLabelChoices.count) * 26))
+                    }
                     Toggle("Mark messages as read when opened", isOn: $store.preferences.markRead)
                     Toggle("Load remote images automatically", isOn: $store.preferences.remoteImages)
                     Divider(); Text("Signature").fontWeight(.medium); TextEditor(text: $store.preferences.signature).font(.system(size: 12)).frame(height: 90).border(Color.gray.opacity(0.2))
@@ -788,7 +807,7 @@ struct SettingsPane: View {
                 }
                 Spacer(minLength: 0)
             }.padding(30).frame(maxWidth: .infinity, alignment: .leading)
-        }.animation(.easeInOut(duration: 0.2), value: section).buttonStyle(PostButtonStyle()).frame(width: 760, height: 600).background(PostStyle.background).preferredColorScheme(PostStyle.scheme(store.preferences.appearance))
+        }.animation(.easeInOut(duration: 0.2), value: section).buttonStyle(PostButtonStyle()).frame(width: 760, height: 700).background(PostStyle.background).preferredColorScheme(PostStyle.scheme(store.preferences.appearance))
         .onAppear { store.refreshNotificationStatus() }
         .onChange(of: section) { _, _ in store.refreshNotificationStatus() }
         .onDisappear { store.recordingShortcut = nil }

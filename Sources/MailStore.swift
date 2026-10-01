@@ -72,13 +72,33 @@ final class MailStore: ObservableObject {
         currentRemoteIDs = snapshot?.ids ?? []
         nextPage = snapshot?.nextPage
     }
-    var primaryQuery: String { (preferences.primaryMode ?? "wide") == "wide" ? "in:inbox -category:promotions -label:newsletters" : "in:inbox category:primary" }
+    var primaryLabelChoices: [MailFolder] {
+        folders.filter { $0.isCustom || $0.id == "CATEGORY_PROMOTIONS" }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+    var primaryIncludedLabels: Set<String> { preferences.primaryIncludedLabels ?? [] }
+    var primaryExcludedLabels: [MailFolder] { primaryLabelChoices.filter { !primaryIncludedLabels.contains($0.id) } }
+    var primaryQuery: String {
+        let base = (preferences.primaryMode ?? "wide") == "wide" ? "in:inbox" : "in:inbox category:primary"
+        return ([base] + primaryExcludedLabels.map { "-\($0.query)" }).joined(separator: " ")
+    }
+    func primarySettingsChanged() {
+        select(nil)
+        restoreFolderSnapshot()
+        updateLocalCounts()
+        if connected { scheduleLoad() }
+    }
+    func setPrimaryLabel(_ id: String, included: Bool) {
+        var ids = primaryIncludedLabels
+        if included { ids.insert(id) } else { ids.remove(id) }
+        preferences.primaryIncludedLabels = ids
+        primarySettingsChanged()
+    }
     func contains(_ folder: MailFolder, _ message: MailMessage) -> Bool {
         if message.labels.contains("TRASH") && folder.id != "TRASH" { return false }
         if message.labels.contains("SPAM") && folder.id != "SPAM" { return false }
-        if folder.id == "primary", (preferences.primaryMode ?? "wide") == "wide" {
-            let newsletterIDs = Set(folders.filter { $0.name.lowercased() == "newsletters" }.map(\.id))
-            return message.labels.contains("INBOX") && !message.labels.contains("CATEGORY_PROMOTIONS") && message.labels.isDisjoint(with: newsletterIDs)
+        if folder.id == "primary" {
+            guard message.labels.contains("INBOX"), message.labels.isDisjoint(with: Set(primaryExcludedLabels.map(\.id))) else { return false }
+            return (preferences.primaryMode ?? "wide") == "wide" || message.labels.contains("CATEGORY_PERSONAL")
         }
         return folder.contains(message)
     }
@@ -317,6 +337,9 @@ final class MailStore: ObservableObject {
                 let remoteFolders = try await gmail.folders()
                 guard folderID == viewID else { return }
                 folders = remoteFolders
+                if folderID == "primary", folderCacheKey != cacheKey {
+                    restoreFolderSnapshot(); scheduleLoad(); persist(); return
+                }
                 if !folders.contains(where: { $0.id == folderID }) { folderID = "primary"; restoreFolderSnapshot() }
                 // Composite views count messages in their own query, rather than a category's archived mail.
                 let primaryUnread = try await gmail.count(query: primaryQuery + " is:unread")
