@@ -4,7 +4,7 @@
 
 A native SwiftUI email client for macOS and one Gmail account. Labels, keyboard navigation, and a quiet three-pane layout are the focus.
 
-https://github.com/user-attachments/assets/a8f27fc0-68e7-4870-b713-edb8f47678cc
+https://github.com/user-attachments/assets/f331c8a5-f2b5-4768-816f-6a3f7d1f7de0
 
 ![Post in light and dark mode](docs/media/appearance.png)
 
