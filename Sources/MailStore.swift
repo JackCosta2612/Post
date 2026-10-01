@@ -189,6 +189,7 @@ final class MailStore: ObservableObject {
         }
     }
     func chooseFolder(_ id: String) {
+        navigationDirection = 1
         folderID = id; selectedDraftID = nil; bulkIDs = []; bulkMode = false; selectionAnchor = nil; rangeBase = nil; selectedID = nil; conversation = []; search = ""; restoreFolderSnapshot()
         if connected { scheduleLoad() }
     }
@@ -200,7 +201,13 @@ final class MailStore: ObservableObject {
             if !Task.isCancelled { await refresh() }
         }
     }
+    private var navigationDirection = 1
     func select(_ id: String?) {
+        let list = selectionList
+        if let previous = selectionCursor, let id,
+           let oldIndex = list.firstIndex(of: previous), let newIndex = list.firstIndex(of: id), oldIndex != newIndex {
+            navigationDirection = newIndex > oldIndex ? 1 : -1
+        }
         bulkIDs = []; bulkMode = false; selectionAnchor = id; rangeBase = nil
         selectedDraftID = folderID == "DRAFT" ? id : nil
         selectedID = id; conversation = []; selectionTask?.cancel()
@@ -264,6 +271,7 @@ final class MailStore: ObservableObject {
         if !actionIDs.contains(id) { select(id) }
     }
     func navigate(_ direction: Int) {
+        navigationDirection = direction < 0 ? -1 : 1
         if folderID == "DRAFT" {
             let list = selectionList
             guard !list.isEmpty else { return }
@@ -419,7 +427,19 @@ final class MailStore: ObservableObject {
             bulkIDs = remaining; rangeBase = nil
             if remaining.isEmpty { select(nil) }
             else if !remaining.contains(selectedID ?? "") { selectedID = visibleMessages.first { remaining.contains($0.id) }?.id; selectionAnchor = selectedID }
-        } else if advance { let list = visibleMessages; select(list.isEmpty ? nil : list[min(index, list.count - 1)].id) }
+        } else {
+            let remaining = visibleMessages
+            let removed = selectedID.map { id in !remaining.contains(where: { $0.id == id }) } ?? false
+            if removed {
+                let preferred = navigationDirection < 0 ? Array(before[..<index].reversed()) : Array(before.dropFirst(index + 1))
+                let remainingIDs = Set(remaining.map(\.id))
+                let target = preferred.first { remainingIDs.contains($0.id) }?.id
+                    ?? (remaining.isEmpty ? nil : remaining[min(index, remaining.count - 1)].id)
+                let direction = navigationDirection
+                select(target)
+                navigationDirection = direction
+            }
+        }
     }
     func moveSelectedToInbox() {
         actOnSelected(add: ["INBOX"], remove: ["TRASH", "SPAM"], advance: true)

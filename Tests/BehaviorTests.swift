@@ -256,6 +256,27 @@ struct BehaviorTests {
         primaryStore.persist(); primaryStore.flushCache()
         let primaryReload = MailStore(directory: directory.appendingPathComponent("primary-labels"))
         check(primaryReload.primaryIncludedLabels == ["confirmations", "rejections"], "Primary label choices persist")
+        let advanceStore = MailStore(directory: directory.appendingPathComponent("direction"))
+        advanceStore.preferences.markRead = false
+        let base = advanceStore.messages[0]
+        advanceStore.messages = (0..<4).map { i in var m = base; m.id = "nav-\(i)"; m.threadID = m.id; m.date = Date().addingTimeInterval(Double(-i)); m.labels = ["INBOX"]; return m }
+        let originals = advanceStore.messages
+        advanceStore.select("nav-0"); advanceStore.navigate(1)
+        advanceStore.perform("archive")
+        check(advanceStore.selectedID == "nav-2", "Archive advances downward after downward navigation")
+        advanceStore.messages = originals
+        advanceStore.select("nav-3"); advanceStore.navigate(-1)
+        advanceStore.perform("trash")
+        check(advanceStore.selectedID == "nav-1", "Trash advances upward after upward navigation")
+        advanceStore.perform("archive")
+        check(advanceStore.selectedID == "nav-0", "Repeated removal preserves upward direction")
+        advanceStore.perform("archive")
+        check(advanceStore.selectedID == "nav-3", "List boundary falls back to surviving neighbor")
+        advanceStore.perform("archive")
+        check(advanceStore.selectedID == nil, "Removing last message clears selection")
+        advanceStore.messages = originals; advanceStore.chooseFolder("primary"); advanceStore.select("nav-1")
+        advanceStore.actOnSelected(add: ["rejections"], remove: [])
+        check(advanceStore.selectedID == "nav-2", "Excluded label advances when message leaves Primary")
         print("PASS: \(checks) behavioral checks")
     }
 }
