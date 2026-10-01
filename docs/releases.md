@@ -10,7 +10,7 @@ For a cloned checkout:
 
 ```sh
 git fetch --tags
-git checkout v0.2.0
+git checkout v0.2.1
 ./build.sh
 # Quit Post before installing.
 ./install.sh
@@ -21,7 +21,7 @@ Replace the tag with the latest version from Releases. Reuse the same local sign
 ## Publish a release
 
 1. Change `VERSION` and the matching version in `Info.plist`.
-2. Update `RELEASE_NOTES.md` and `CHANGELOG.md`.
+2. Update `RELEASE_NOTES.md`, `CHANGELOG.md`, and the README release badge and link.
 3. Run the checks, build, and review the app. Commit the changes.
 4. Tag the commit with `v` followed by `VERSION`, then push that tag.
 

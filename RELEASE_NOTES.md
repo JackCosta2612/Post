@@ -1,10 +1,10 @@
-Post 0.2.0 is the first versioned public release.
+Post 0.2.1 fixes update discovery and label settings.
 
-- A native three-pane Gmail client with light and dark appearance.
-- Independent unread filters, full section counts, configurable Primary labels and drag-and-drop.
-- Conversations, keyboard navigation, multi-selection and an editable rich text composer.
-- Undo Send, scheduled sending while Post is running, and granular new-mail notifications.
-- Font, accent, density, shortcut and cache settings.
-- A manual update check in Post → Check for updates, or Settings → Account.
+- Check for updates from the Post menu, account menu, or Settings → Account.
+- Label reorder handles sit to the right of their visibility controls.
+- Settings closes when you click outside it or press Escape.
+- A new app preview covers search, multi-select, drafts, scheduled sending, labels, and appearance.
+- Updated screenshots show the current interface.
+- The README links directly to this release.
 
-This release is distributed as source. Follow README.md to build and sign it locally, then Setup.md to connect your own Gmail account. No Google credentials or notarized binary are included. Requires macOS 14 or later.
+This release includes source code. Build and install locally using the README instructions. Each person supplies their own Google Desktop OAuth client. No account credentials are included.

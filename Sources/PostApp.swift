@@ -114,6 +114,7 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
             else { _ = store.setShortcut(action, value: shortcut) }
             store.recordingShortcut = nil; return nil
         }
+        if store.showSettings, shortcut == Shortcut(key: "escape") { store.showSettings = false; return nil }
         guard !store.showSettings, !store.showLabels else { return event }
         if shortcut == store.preferences.shortcuts["clear"], store.compose != nil || store.selectedDraftID != nil {
             store.composerDismissRequest += 1; return nil

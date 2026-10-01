@@ -73,7 +73,21 @@ struct MailWindow: View {
     }
     var body: some View {
         configuredWindow
-        .sheet(isPresented: $store.showSettings) { SettingsPane().environmentObject(store) }
+        .accessibilityHidden(store.showSettings)
+        .overlay {
+            if store.showSettings {
+                ZStack {
+                    Button { store.showSettings = false } label: {
+                        Rectangle().fill(Color.black.opacity(0.14)).contentShape(Rectangle())
+                    }.buttonStyle(.plain).frame(maxWidth: .infinity, maxHeight: .infinity).ignoresSafeArea().accessibilityLabel("Close Settings")
+                    SettingsPane().environmentObject(store)
+                        .accessibilityHidden(store.demoMode)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .shadow(color: .black.opacity(0.18), radius: 24, y: 8)
+                        .onExitCommand { store.showSettings = false }
+                }
+            }
+        }
         .sheet(item: $store.compose) { draft in ComposePane(initial: draft).environmentObject(store) }
         .sheet(isPresented: $store.showLabels) { LabelPicker().environmentObject(store) }
         .alert("Post", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) { Button("OK") { store.error = nil } } message: { Text(store.error ?? "") }
@@ -241,7 +255,7 @@ struct MailWindow: View {
             Button { store.newCompose() } label: {
                 Label("Compose", systemImage: "square.and.pencil").font(PostStyle.font(size: 13, weight: .medium)).foregroundStyle(PostStyle.buttonText).padding(.horizontal, 10).padding(.vertical, 6).background(PostStyle.accent, in: RoundedRectangle(cornerRadius: 9))
             }
-            Menu { Text(store.account); if !store.connected { Button("Connect Gmail…") { store.showSettings = true } }; Button("Settings…") { store.showSettings = true } } label: {
+            Menu { Text(store.account); if !store.connected { Button("Connect Gmail…") { store.showSettings = true } }; Button("Settings…") { store.showSettings = true }; Button("Check for updates…") { PostUpdates.shared.openAccount = true; store.showSettings = true; Task { await PostUpdates.shared.check() } } } label: {
                 Text(String(store.account.prefix(2)).uppercased()).font(PostStyle.font(size: 12, weight: .semibold)).foregroundStyle(PostStyle.accent).frame(width: 32, height: 32).background(PostStyle.selection, in: RoundedRectangle(cornerRadius: 9))
             }.menuStyle(.borderlessButton).fixedSize().pointerHover()
         }.padding(.horizontal, 22).frame(height: 93)
@@ -789,7 +803,7 @@ struct ComposePane: View {
     }
     var body: some View {
         VStack(spacing: 0) {
-            HStack { Text(draft.quotedText == nil ? "Compose" : "Reply").font(PostStyle.font(size: 18, weight: .semibold)); Spacer(); if sending { ProgressView().controlSize(.small) }; Button("Save & close") { saveAndClose() }.disabled(sending); Button("Send") { sending = true; Task { if await store.send(draft) { closeEditor() }; sending = false } }.buttonStyle(.borderedProminent).disabled(sending || draft.to.isEmpty || !store.connected); Button { showSchedule = true } label: { Image(systemName: "clock") }.help("Send later").popover(isPresented: $showSchedule, attachmentAnchor: .rect(.bounds), arrowEdge: .top) { schedulePopover }.disabled(sending || draft.to.isEmpty || !store.connected) ; Button { confirmDelete = true } label: { Image(systemName: "trash") }.help("Delete draft").disabled(sending) }.padding(20)
+            HStack { Text(draft.quotedText == nil ? "Compose" : "Reply").font(PostStyle.font(size: 18, weight: .semibold)); Spacer(); if sending { ProgressView().controlSize(.small) }; Button("Save & close") { saveAndClose() }.disabled(sending); Button("Send") { sending = true; Task { if await store.send(draft) { closeEditor() }; sending = false } }.buttonStyle(.borderedProminent).disabled(sending || draft.to.isEmpty || !store.connected); Button { showSchedule = true } label: { Image(systemName: "clock") }.help("Send later").popover(isPresented: $showSchedule, attachmentAnchor: .rect(.bounds), arrowEdge: .top) { schedulePopover }.disabled(sending || draft.to.isEmpty || (!store.connected && !store.demoMode)) ; Button { confirmDelete = true } label: { Image(systemName: "trash") }.help("Delete draft").disabled(sending) }.padding(20)
             Divider()
             HStack { Text("To").frame(width: 65, alignment: .leading).fixedSize(horizontal: false, vertical: true).foregroundStyle(.secondary); TextField("", text: $draft.to).accessibilityLabel("To").textFieldStyle(.plain); Button("Cc/Bcc") { showCC.toggle() }.buttonStyle(PostButtonStyle()).font(PostStyle.font(size: 11)).foregroundStyle(.secondary) }.padding(.horizontal, 22).padding(.vertical, 12)
             if showCC || !draft.cc.isEmpty || !draft.bcc.isEmpty { recipientRow("Cc", text: $draft.cc); recipientRow("Bcc", text: $draft.bcc) }

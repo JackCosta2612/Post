@@ -1,12 +1,17 @@
 # Post
 
-[![Latest release](https://img.shields.io/github/v/release/JackCosta2612/Post?style=flat&color=477fb4)](https://github.com/JackCosta2612/Post/releases/latest) [![Checks](https://github.com/JackCosta2612/Post/actions/workflows/checks.yml/badge.svg)](https://github.com/JackCosta2612/Post/actions) [![MIT](https://img.shields.io/badge/license-MIT-697783)](LICENSE)
+[![Latest release](https://img.shields.io/badge/release-v0.2.1-477fb4)](https://github.com/JackCosta2612/Post/releases/tag/v0.2.1) [![Checks](https://github.com/JackCosta2612/Post/actions/workflows/checks.yml/badge.svg)](https://github.com/JackCosta2612/Post/actions) [![MIT](https://img.shields.io/badge/license-MIT-697783)](LICENSE)
 
 A native SwiftUI email client for macOS and one Gmail account. Labels, keyboard navigation, and a quiet three-pane layout are the focus.
 
-https://github.com/user-attachments/assets/f7540ab9-5e3b-4a00-bb1f-cb37e4a8cb77
+https://github.com/user-attachments/assets/6fe25783-88d6-4c76-8378-d0749491a60b
 
 ![Post in light and dark mode](docs/media/appearance.png)
+
+<table>
+<tr><td><img src="docs/media/selection.png" alt="Selecting multiple messages"><br><b>Select and move together</b></td><td><img src="docs/media/scheduled-send.png" alt="Scheduling a reply"><br><b>Write now, send later</b></td></tr>
+<tr><td><img src="docs/media/labels.png" alt="Label visibility and reorder controls"><br><b>Arrange your labels</b></td><td><img src="docs/media/accent-dark.png" alt="Purple accent in dark mode"><br><b>Choose your appearance</b></td></tr>
+</table>
 
 ## Try it
 
@@ -40,7 +45,7 @@ Search filters and highlights the loaded list. Mail is cached for offline readin
 
 ## Stay up to date
 
-Open **Post → Check for updates…** to compare your installed version with the latest GitHub release. Post shows its version and build in Settings → Account. Updates are installed manually. See the [release guide](docs/releases.md) and [changelog](CHANGELOG.md).
+Open **Post → Check for updates…** to compare your installed version with the latest GitHub release. The same check is available from the account menu and Settings → Account, alongside the installed version and build. Updates are installed manually. See the [release guide](docs/releases.md) and [changelog](CHANGELOG.md).
 
 ## Default keys
 

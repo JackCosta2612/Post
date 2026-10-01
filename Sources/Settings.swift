@@ -69,8 +69,8 @@ struct SettingsPane: View {
             Text("Drag a handle to reorder. Primary stays first. Hidden labels stay in Gmail.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
             ForEach(store.orderedSidebarLabels.filter { $0.id != "primary" }) { label in
                 HStack {
-                    Image(systemName: "line.3.horizontal").foregroundStyle(.secondary).frame(width: 28, height: 30).contentShape(Rectangle()).background(MailDragSurface(payload: "post-label:" + label.id, title: label.name)).help("Drag to reorder")
                     Toggle(label.name, isOn: Binding(get: { !(store.preferences.hiddenSidebarLabels ?? []).contains(label.id) }, set: { store.setSidebarLabel(label.id, visible: $0) }))
+                    Image(systemName: "line.3.horizontal").foregroundStyle(.secondary).frame(width: 28, height: 30).contentShape(Rectangle()).background(MailDragSurface(payload: "post-label:" + label.id, title: label.name)).help("Drag to reorder")
                 }.padding(9).background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 8))
                     .modifier(LabelDropTarget(id: label.id, height: 48, store: store, acceptsMessages: false))
             }
@@ -137,6 +137,14 @@ struct SettingsPane: View {
             Text(store.downloadDirectory.path).font(PostStyle.font(size: 11)).textSelection(.enabled)
             HStack { Button("Choose folder…") { store.chooseDownloadDirectory() }; Button("Use Downloads") { store.preferences.downloadDirectory = nil }; Button("Show in Finder") { NSWorkspace.shared.open(store.downloadDirectory) } }
         default:
+            GroupBox("Updates") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Post \(PostUpdates.version) · Build \(PostUpdates.build)")
+                    Button(updates.checking ? "Checking…" : "Check for updates") { Task { await updates.check() } }.disabled(updates.checking)
+                    if !updates.status.isEmpty { Text(updates.status).font(PostStyle.font(size: 12)) }
+                    if let url = updates.releaseURL { Link("View release", destination: url) }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
+            }
             Text(store.connected ? store.account : "No Gmail account connected").font(PostStyle.font(size: 13, weight: .semibold)).textSelection(.enabled)
             if store.connected { Button("Disconnect Gmail") { store.disconnect() } }
             else {
