@@ -4,13 +4,13 @@
 
 A native SwiftUI email client for macOS and one Gmail account. Labels, keyboard navigation, and a quiet three-pane layout are the focus.
 
-https://github.com/user-attachments/assets/6fe25783-88d6-4c76-8378-d0749491a60b
+https://github.com/user-attachments/assets/a8f27fc0-68e7-4870-b713-edb8f47678cc
 
 ![Post in light and dark mode](docs/media/appearance.png)
 
 <table>
 <tr><td><img src="docs/media/selection.png" alt="Selecting multiple messages"><br><b>Select and move together</b></td><td><img src="docs/media/scheduled-send.png" alt="Scheduling a reply"><br><b>Write now, send later</b></td></tr>
-<tr><td><img src="docs/media/labels.png" alt="Label visibility and reorder controls"><br><b>Arrange your labels</b></td><td><img src="docs/media/accent-dark.png" alt="Purple accent in dark mode"><br><b>Choose your appearance</b></td></tr>
+<tr><td><img src="docs/media/labels.png" alt="Label visibility and reorder controls"><br><b>Arrange your labels</b></td><td><img src="docs/media/accent-dark.png" alt="Blue accent in dark mode"><br><b>Choose your appearance</b></td></tr>
 </table>
 
 ## Try it
