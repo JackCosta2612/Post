@@ -402,10 +402,10 @@ struct ConversationMessage: View {
                     .transaction { $0.animation = nil }.padding(.horizontal, 6).frame(minHeight: 100).clipShape(RoundedRectangle(cornerRadius: 7))
             } else {
                 let parts = MessageQuote.split(message.body)
-                Text(parts.body).font(.system(size: 14)).lineSpacing(6).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 6)
+                Text(detectedLinks(parts.body)).font(.system(size: 14)).lineSpacing(6).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 6)
                 if let quote = parts.quote {
                     DisclosureGroup("Quoted message", isExpanded: $showPlainQuote) {
-                        Text(quote).font(.system(size: 13)).lineSpacing(5).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 10)
+                        Text(detectedLinks(quote)).font(.system(size: 13)).lineSpacing(5).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 10)
                     }.font(.system(size: 12)).padding(.horizontal, 6)
                 }
             }
@@ -444,6 +444,18 @@ final class ThreadWebView: WKWebView {
         }
     }
     deinit { if let wheelMonitor { NSEvent.removeMonitor(wheelMonitor) } }
+}
+
+private func detectedLinks(_ text: String) -> AttributedString {
+    var result = AttributedString(text)
+    guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return result }
+    for match in detector.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+        guard let url = match.url, ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? ""),
+              let range = Range(match.range, in: text), let start = AttributedString.Index(range.lowerBound, within: result),
+              let end = AttributedString.Index(range.upperBound, within: result) else { continue }
+        result[start..<end].link = url
+    }
+    return result
 }
 
 struct HTMLMessage: View {
@@ -528,6 +540,31 @@ struct HTMLDocument: NSViewRepresentable {
         }));
         """, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
         config.userContentController.addUserScript(script)
+        config.userContentController.addUserScript(WKUserScript(source: #"""
+        // Linkify text nodes only; never change existing links, attributes, or styles.
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) {
+            const node = walker.currentNode;
+            if (!node.parentElement.closest('a,script,style,textarea,code,pre')) nodes.push(node);
+        }
+        for (const node of nodes) {
+            const text = node.textContent;
+            const pattern = /(?:https?:\/\/|www\.)[^\s<>"']+/gi;
+            const fragment = document.createDocumentFragment();
+            let end = 0, found = false;
+            for (const match of text.matchAll(pattern)) {
+                let address = match[0].replace(/[.,;!?:]+$/, '');
+                while (address.endsWith(')') && (address.match(/\)/g) || []).length > (address.match(/\(/g) || []).length) address = address.slice(0, -1);
+                const href = /^www\./i.test(address) ? 'https://' + address : address;
+                try { if (!['http:', 'https:'].includes(new URL(href).protocol)) continue; } catch { continue; }
+                fragment.append(document.createTextNode(text.slice(end, match.index)));
+                const anchor = document.createElement('a'); anchor.href = href; anchor.textContent = address;
+                fragment.append(anchor); end = match.index + address.length; found = true;
+            }
+            if (found) { fragment.append(document.createTextNode(text.slice(end))); node.replaceWith(fragment); }
+        }
+        """#, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         config.userContentController.add(context.coordinator, name: "postHeight")
         config.userContentController.add(context.coordinator, name: "postReady")
         config.websiteDataStore = Self.webDataStore;
@@ -667,7 +704,7 @@ struct ComposePane: View {
                             HStack(alignment: .top, spacing: 16) {
                                 RoundedRectangle(cornerRadius: 1).fill(PostStyle.accent.opacity(0.25)).frame(width: 2)
                                 if let html = draft.quotedHTML, !html.isEmpty { HTMLMessage(html: html, remoteImages: false).frame(minHeight: 330) }
-                                else { Text(quote).font(.system(size: 13)).lineSpacing(5).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
+                                else { Text(detectedLinks(quote)).font(.system(size: 13)).lineSpacing(5).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
                             }.fixedSize(horizontal: false, vertical: true)
                         }.padding(16).background(PostStyle.sidebar.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
                             .contextMenu { Button("Copy quoted message") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(quote, forType: .string) }; Button("Remove quote") { draft.quotedText = nil; draft.quotedHTML = nil; draft.quoteHeading = nil; scheduleSave() } }
