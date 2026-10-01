@@ -103,21 +103,10 @@ struct MailWindow: View {
         .onChange(of: store.focusSearch) { _, value in if value { searchFocused = true; store.focusSearch = false } }
 
     }
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .leading) {
-                Button { store.preferences.collapsed.toggle() } label: {
-                    Image(systemName: "sidebar.left").font(.system(size: 16)).frame(width: 44, height: 38)
-                }.buttonStyle(PostButtonStyle(inset: 0)).help(store.preferences.collapsed ? "Expand sidebar" : "Collapse sidebar")
-                Text("Post").font(.system(size: 14, weight: .semibold)).foregroundStyle(PostStyle.secondary).offset(x: 218)
-            }.frame(width: 264, height: 38, alignment: .leading).padding(.leading, 20).padding(.top, 43).padding(.bottom, 12)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(store.folders) { folder in
-                        if folder.id == "STARRED" { Color.clear.frame(height: 14) }
+    private func sidebarRow(_ folder: MailFolder) -> some View {
                         let count = folder.id == "TRASH" ? 0 : (store.preferences.totalCounts ? folder.totalCount : folder.unreadCount)
                         let selected = store.folderID == folder.id
-                        Button { NSApp.keyWindow?.makeFirstResponder(nil); store.chooseFolder(folder.id) } label: {
+                        return Button { NSApp.keyWindow?.makeFirstResponder(nil); store.chooseFolder(folder.id) } label: {
                             ZStack(alignment: .leading) {
                                 Image(systemName: folder.icon.replacingOccurrences(of: "circle", with: "square"))
                                     .font(.system(size: 17, weight: .regular)).frame(width: 44, height: 44)
@@ -149,9 +138,30 @@ struct MailWindow: View {
                                 Button("Open \(folder.name)") { store.chooseFolder(folder.id) }
                                 Button("Refresh") { store.chooseFolder(folder.id); Task { await store.refresh(manual: true) } }
                             }
+    }
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack(alignment: .leading) {
+                Button { store.preferences.collapsed.toggle() } label: {
+                    Image(systemName: "sidebar.left").font(.system(size: 16)).frame(width: 44, height: 38)
+                }.buttonStyle(PostButtonStyle(inset: 0)).help(store.preferences.collapsed ? "Expand sidebar" : "Collapse sidebar")
+                Text("Post").font(.system(size: 14, weight: .semibold)).foregroundStyle(PostStyle.secondary).offset(x: 218)
+            }.frame(width: 264, height: 38, alignment: .leading).padding(.leading, 20).padding(.top, 43).padding(.bottom, 12)
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(store.sidebarLabels) { folder in sidebarRow(folder) }
+                        }.padding(.leading, 20).padding(.top, 3).padding(.bottom, 3).frame(width: 284, alignment: .leading)
                     }
-                }.padding(.leading, 20).frame(width: 284, alignment: .leading)
-            }.frame(width: 284)
+                    if CGFloat(store.sidebarLabels.count * 52 - 8 + 6) > geometry.size.height {
+                        Rectangle().fill(PostStyle.secondary.opacity(0.15)).frame(height: 1).padding(.horizontal, 20)
+                    }
+                }
+            }.frame(width: store.preferences.collapsed ? 88 : 304)
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(store.sidebarFilters) { folder in sidebarRow(folder) }
+            }.padding(.leading, 20).padding(.top, 16).frame(width: 284, alignment: .leading)
             ZStack(alignment: .leading) {
                 Button { store.showSettings = true } label: { Image(systemName: "gearshape").frame(width: 44, height: 44) }.buttonStyle(PostButtonStyle(inset: 0)).help("Settings")
                 Button { showNewLabel = true } label: { Label("New label", systemImage: "plus").font(.system(size: 12)) }.offset(x: 58)
@@ -780,7 +790,7 @@ struct SettingsPane: View {
     @LocalState private var shortcutText: [String: String] = [:]
     var body: some View {
         HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 7) { Text("Settings").font(.system(size: 16, weight: .semibold)).padding(.bottom, 20); ForEach([("General", "gearshape"), ("Downloads", "arrow.down.square"), ("Notifications", "bell"), ("Shortcuts", "keyboard"), ("Account", "person.crop.square")], id: \.0) { name, icon in Button { section = name } label: { Label(name, systemImage: icon).frame(maxWidth: .infinity, alignment: .leading).padding(10).background(section == name ? PostStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 6)) }.buttonStyle(PostButtonStyle()) }; Spacer(); Button("Done") { store.showSettings = false }.keyboardShortcut(.defaultAction) }.padding(20).frame(width: 190).background(PostStyle.sidebar)
+            VStack(alignment: .leading, spacing: 7) { Text("Settings").font(.system(size: 16, weight: .semibold)).padding(.bottom, 20); ForEach([("General", "gearshape"), ("Sidebar", "sidebar.left"), ("Downloads", "arrow.down.square"), ("Notifications", "bell"), ("Shortcuts", "keyboard"), ("Account", "person.crop.square")], id: \.0) { name, icon in Button { section = name } label: { Label(name, systemImage: icon).frame(maxWidth: .infinity, alignment: .leading).padding(10).background(section == name ? PostStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 6)) }.buttonStyle(PostButtonStyle()) }; Spacer(); Button("Done") { store.showSettings = false }.keyboardShortcut(.defaultAction) }.padding(20).frame(width: 190).background(PostStyle.sidebar)
             Divider()
             VStack(alignment: .leading, spacing: 22) {
                 Text(section).font(.system(size: 25, weight: .semibold))
@@ -801,6 +811,16 @@ struct SettingsPane: View {
                     Toggle("Load remote images automatically", isOn: $store.preferences.remoteImages)
                     Divider(); Text("Signature").fontWeight(.medium); TextEditor(text: $store.preferences.signature).font(.system(size: 12)).frame(height: 90).border(Color.gray.opacity(0.2))
                     Picker("Appearance", selection: Binding(get: { store.preferences.appearance ?? "system" }, set: { store.preferences.appearance = $0 })) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented)
+                } else if section == "Sidebar" {
+                    Text("Visible labels").fontWeight(.medium)
+                    Text("Hidden labels remain in Gmail and can still be used to organize mail.").font(.system(size: 12)).foregroundStyle(.secondary)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            ForEach(store.primaryLabelChoices) { label in
+                                Toggle(label.name, isOn: Binding(get: { !(store.preferences.hiddenSidebarLabels ?? []).contains(label.id) }, set: { store.setSidebarLabel(label.id, visible: $0) }))
+                            }
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 } else if section == "Downloads" {
                     Text("Attachment download location").fontWeight(.medium)
                     Text(store.downloadDirectory.path).font(.system(size: 12)).foregroundStyle(.secondary).textSelection(.enabled)

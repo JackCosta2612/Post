@@ -277,6 +277,12 @@ struct BehaviorTests {
         advanceStore.messages = originals; advanceStore.chooseFolder("primary"); advanceStore.select("nav-1")
         advanceStore.actOnSelected(add: ["rejections"], remove: [])
         check(advanceStore.selectedID == "nav-2", "Excluded label advances when message leaves Primary")
+        primaryStore.setSidebarLabel("confirmations", visible: false)
+        check(!primaryStore.sidebarLabels.contains { $0.id == "confirmations" }, "Hidden labels excluded from sidebar")
+        check(primaryStore.folders.contains { $0.id == "confirmations" }, "Hiding label preserves underlying folder")
+        check(primaryStore.sidebarFilters.contains { $0.id == "STARRED" } && !primaryStore.sidebarLabels.contains { $0.id == "STARRED" }, "System filters separated from labels")
+        primaryStore.setSidebarLabel("confirmations", visible: true)
+        check(primaryStore.sidebarLabels.contains { $0.id == "confirmations" }, "Hidden label can be restored")
         print("PASS: \(checks) behavioral checks")
     }
 }

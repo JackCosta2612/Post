@@ -109,6 +109,7 @@ struct Shortcut: Codable, Equatable {
 }
 
 struct MailPreferences: Codable {
+    var hiddenSidebarLabels: Set<String>? = nil
     var collapsed = false
     var totalCounts = false
     var notifications = false

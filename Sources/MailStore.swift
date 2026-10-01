@@ -72,6 +72,14 @@ final class MailStore: ObservableObject {
         currentRemoteIDs = snapshot?.ids ?? []
         nextPage = snapshot?.nextPage
     }
+    var sidebarLabels: [MailFolder] { folders.filter { ($0.id == "primary" || $0.isCustom || $0.id == "CATEGORY_PROMOTIONS") && !(preferences.hiddenSidebarLabels ?? []).contains($0.id) } }
+    var sidebarFilters: [MailFolder] { folders.filter { $0.id != "primary" && !$0.isCustom && $0.id != "CATEGORY_PROMOTIONS" } }
+    func setSidebarLabel(_ id: String, visible: Bool) {
+        var hidden = preferences.hiddenSidebarLabels ?? []
+        if visible { hidden.remove(id) } else { hidden.insert(id) }
+        preferences.hiddenSidebarLabels = hidden
+        if !visible && folderID == id { chooseFolder("primary") }
+    }
     var primaryLabelChoices: [MailFolder] {
         folders.filter { $0.isCustom || $0.id == "CATEGORY_PROMOTIONS" }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
