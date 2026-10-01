@@ -76,7 +76,16 @@ final class MailStore: ObservableObject {
     }
     var folder: MailFolder { folders.first { $0.id == folderID } ?? MailFolder.defaults[0] }
     var awaitingFolderList: Bool { connected && folderSnapshots[folderCacheKey] == nil }
-    var folderCacheKey: String { folder.id + "|" + (folder.id == "primary" ? primaryQuery : folder.query) }
+    @Published var unreadFolders: Set<String> = []
+    var unreadOnly: Bool { unreadFolders.contains(folderID) }
+    var activeFolderQuery: String { (folderID == "primary" ? primaryQuery : folder.query) + (unreadOnly ? " is:unread" : "") }
+    var folderCacheKey: String { folder.id + "|" + activeFolderQuery }
+    var sectionCount: Int { unreadOnly ? folder.unreadCount : (folderID == "DRAFT" ? max(folder.totalCount, drafts.count) : folder.totalCount) }
+    func toggleUnreadFilter() {
+        if unreadOnly { unreadFolders.remove(folderID) } else { unreadFolders.insert(folderID) }
+        select(nil); restoreFolderSnapshot()
+        if connected { scheduleLoad() }
+    }
     func restoreFolderSnapshot() {
         guard connected else { currentRemoteIDs = nil; nextPage = nil; return }
         let snapshot = folderSnapshots[folderCacheKey]
@@ -179,7 +188,7 @@ final class MailStore: ObservableObject {
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
         let values = messages.filter { message in
             if let remote = currentRemoteIDs, connected, !remote.contains(message.id) { return false }
-            guard contains(folder, message) else { return false }
+            guard contains(folder, message), !unreadOnly || message.unread else { return false }
             return query.isEmpty || [message.from, message.subject, message.snippet, message.body].contains {
                 $0.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
             }
@@ -374,10 +383,13 @@ final class MailStore: ObservableObject {
     }
     private func updateFolderSnapshots(_ message: MailMessage) {
         for f in folders {
-            let key = f.id + "|" + (f.id == "primary" ? primaryQuery : f.query)
-            guard var snapshot = folderSnapshots[key] else { continue }
-            if contains(f, message) { snapshot.ids.insert(message.id) } else { snapshot.ids.remove(message.id) }
-            folderSnapshots[key] = snapshot
+            let base = f.id + "|" + (f.id == "primary" ? primaryQuery : f.query)
+            for unread in [false, true] {
+                let key = base + (unread ? " is:unread" : "")
+                guard var snapshot = folderSnapshots[key] else { continue }
+                if contains(f, message) && (!unread || message.unread) { snapshot.ids.insert(message.id) } else { snapshot.ids.remove(message.id) }
+                folderSnapshots[key] = snapshot
+            }
         }
     }
     func merge(_ incoming: [MailMessage]) {
@@ -404,7 +416,7 @@ final class MailStore: ObservableObject {
         var arrivals: [MailMessage] = []
         let oldIDs = Set(messages.map(\.id)); let viewID = folderID
         let cacheKey = folderCacheKey
-        let query = folderID == "primary" ? primaryQuery : folder.query
+        let query = activeFolderQuery
         if !silent { status = "Syncing Gmail…" }
         do {
             try await flushPending()
@@ -448,9 +460,9 @@ final class MailStore: ObservableObject {
                 if !folders.contains(where: { $0.id == folderID }) { folderID = "primary"; restoreFolderSnapshot() }
                 // Composite views count messages in their own query, rather than a category's archived mail.
                 let primaryUnread = try await gmail.count(query: primaryQuery + " is:unread")
-                let primaryTotal = preferences.totalCounts ? try await gmail.count(query: primaryQuery) : folders.first(where: { $0.id == "primary" })?.totalCount ?? 0
+                let primaryTotal = try await gmail.count(query: primaryQuery)
                 let allUnread = try await gmail.count(query: "-in:trash -in:spam -in:drafts is:unread")
-                let allTotal = preferences.totalCounts ? try await gmail.count(query: "-in:trash -in:spam -in:drafts") : folders.first(where: { $0.id == "all" })?.totalCount ?? 0
+                let allTotal = try await gmail.count(query: "-in:trash -in:spam -in:drafts")
                 guard !Task.isCancelled, folderID == viewID, folderCacheKey == cacheKey, refreshGeneration == generation else { return }
                 var countedFolders = folders
                 if let i = countedFolders.firstIndex(where: { $0.id == "primary" }) { countedFolders[i].unreadCount = primaryUnread; countedFolders[i].totalCount = primaryTotal }

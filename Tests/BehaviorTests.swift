@@ -318,6 +318,17 @@ struct BehaviorTests {
         check(dragStore.messages[0].labels == ["INBOX"], "Drag move supports Undo")
         check(!dragStore.handleSidebarDrop(["unrelated text"], target: "primary"), "External text cannot move mail")
         let settingsStore = MailStore(directory: directory.appendingPathComponent("settings"))
+        let filterStore = MailStore(directory: directory.appendingPathComponent("unread-filter"))
+        filterStore.toggleUnreadFilter()
+        check(filterStore.unreadOnly && filterStore.visibleMessages.allSatisfy(\.unread), "Unread filter hides read messages")
+        check(filterStore.activeFolderQuery.hasSuffix(" is:unread"), "Unread query searches beyond the loaded page")
+        filterStore.chooseFolder("rejections")
+        check(!filterStore.unreadOnly, "Unread filter does not affect another label")
+        filterStore.chooseFolder("primary")
+        check(filterStore.unreadOnly, "Each label retains its unread filter")
+        filterStore.toggleUnreadFilter()
+        check(!filterStore.unreadOnly, "Unread filter can return to all messages")
+
         settingsStore.preferences.markRead = false
         settingsStore.preferences.groupConversations = false
         settingsStore.messages = [incoming, outgoing]; settingsStore.select(incoming.id)

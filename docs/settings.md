@@ -56,3 +56,5 @@ Interface, composing, and reading fonts have separate controls. Each defaults to
 Dragging a label shows a horizontal insertion line above or below its destination. Message drops still move the mail into the target label.
 
 Email content preserves original colors by default. Enable “Use app colors for email content” under Reading to apply Post’s light/dark recoloring. Hold Command for 1.5 seconds without pressing another key to show label shortcut hints. Composer formatting uses the standard Command-B, Command-I, and Command-U shortcuts; each toggles its formatting.
+
+The header count uses section totals from Gmail. The Unread button beside the section title filters only that section, with independent states for each label. It queries unread mail beyond the initial loaded page.

@@ -215,8 +215,18 @@ struct MailWindow: View {
     private var topBar: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(store.folder.name).font(PostStyle.font(size: 20, weight: .semibold)).lineLimit(1)
-                Text("\(store.folderID == "DRAFT" ? store.drafts.count : store.visibleMessages.count) messages").font(PostStyle.font(size: 11)).foregroundStyle(PostStyle.secondary)
+                HStack(spacing: 10) {
+                    Text(store.folder.name).font(PostStyle.font(size: 20, weight: .semibold)).lineLimit(1)
+                    if store.folderID != "DRAFT" {
+                        Button { store.toggleUnreadFilter() } label: {
+                            Label("Unread", systemImage: store.unreadOnly ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
+                                .font(PostStyle.font(size: 11, weight: .medium)).padding(.horizontal, 8).padding(.vertical, 5)
+                                .foregroundStyle(store.unreadOnly ? PostStyle.accent : PostStyle.secondary)
+                                .background(store.unreadOnly ? PostStyle.selection : PostStyle.subtle, in: RoundedRectangle(cornerRadius: 6))
+                        }.buttonStyle(PostButtonStyle(selected: store.unreadOnly)).help("Show unread messages in this section").accessibilityValue(store.unreadOnly ? "On" : "Off")
+                    }
+                }
+                Text("\(store.sectionCount) \(store.unreadOnly ? "unread messages" : "messages")").font(PostStyle.font(size: 11)).foregroundStyle(PostStyle.secondary)
             }
             Spacer(minLength: 8)
             Button { Task { await store.refresh(manual: true) } } label: {
@@ -271,7 +281,7 @@ struct MailWindow: View {
                     .onChange(of: store.selectedID) { _, id in if let id { withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(id) } } }
                 }
             }
-        }.background(PostStyle.background).id(store.folderID)
+        }.background(PostStyle.background).id(store.folderCacheKey)
     }
     private func configurePresentation() {
         PostPalette.shared.interfaceFont = store.preferences.interfaceFont ?? "SF Pro Display"
