@@ -115,7 +115,7 @@ struct MailWindow: View {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(store.folders) { folder in
                         if folder.id == "STARRED" { Color.clear.frame(height: 14) }
-                        let count = store.preferences.totalCounts ? folder.totalCount : folder.unreadCount
+                        let count = folder.id == "TRASH" ? 0 : (store.preferences.totalCounts ? folder.totalCount : folder.unreadCount)
                         let selected = store.folderID == folder.id
                         Button { NSApp.keyWindow?.makeFirstResponder(nil); store.chooseFolder(folder.id) } label: {
                             ZStack(alignment: .leading) {
@@ -144,7 +144,7 @@ struct MailWindow: View {
                                     }
                                 }
                         }.buttonStyle(PostButtonStyle(inset: 0, selected: selected))
-                            .accessibilityLabel(folder.name).help("\(folder.name): \(count) \(store.preferences.totalCounts ? "messages" : "unread messages")")
+                            .accessibilityLabel(folder.name).help(folder.id == "TRASH" ? folder.name : "\(folder.name): \(count) \(store.preferences.totalCounts ? "messages" : "unread messages")")
                             .contextMenu {
                                 Button("Open \(folder.name)") { store.chooseFolder(folder.id) }
                                 Button("Refresh") { store.chooseFolder(folder.id); Task { await store.refresh(manual: true) } }
