@@ -36,7 +36,8 @@ struct MailDragSurface: NSViewRepresentable {
                     return true
                 }
                 drag.setDraggingFrame(NSRect(x: point.x - 20, y: point.y - 19, width: 240, height: 38), contents: image)
-                self.beginDraggingSession(with: [drag], event: event, source: self)
+                let session = self.beginDraggingSession(with: [drag], event: event, source: self)
+                session.animatesToStartingPositionsOnCancelOrFail = false
                 return nil
             }
         }
@@ -117,6 +118,17 @@ struct RichComposer: NSViewRepresentable {
         }
     }
     final class ComposerTextView: NSTextView {
+        override func keyDown(with event: NSEvent) {
+            if event.modifierFlags.intersection([.command, .option, .control]) == .command {
+                switch event.charactersIgnoringModifiers?.lowercased() {
+                case "b": postToggleTrait(.boldFontMask); return
+                case "i": postToggleTrait(.italicFontMask); return
+                case "u": postToggleUnderline(); return
+                default: break
+                }
+            }
+            super.keyDown(with: event)
+        }
         var focusOnLoad = false
         private var focusedOnce = false
         override func viewDidMoveToWindow() {
@@ -169,7 +181,11 @@ struct LabelDropTarget: ViewModifier {
     let acceptsMessages: Bool
     @ObservedObject private var drag = LabelDragState.shared
     func body(content: Content) -> some View {
-        content.overlay(alignment: drag.after ? .bottom : .top) {
+        content.background {
+            if drag.target == id && drag.payload?.hasPrefix("post-mail:") == true {
+                RoundedRectangle(cornerRadius: 8).fill(PostStyle.selection).overlay(RoundedRectangle(cornerRadius: 8).stroke(PostStyle.accent.opacity(0.65), lineWidth: 1.5))
+            }
+        }.animation(.easeOut(duration: 0.12), value: drag.target == id).overlay(alignment: drag.after ? .bottom : .top) {
             if drag.target == id && drag.payload?.hasPrefix("post-label:") == true {
                 RoundedRectangle(cornerRadius: 1).fill(PostStyle.accent).frame(height: 2).padding(.horizontal, 4).allowsHitTesting(false)
             }
@@ -195,5 +211,42 @@ struct SidebarDropDelegate: DropDelegate {
         LabelDragState.shared.target = nil
         if payload.hasPrefix("post-label:") { return store.reorderSidebarLabel(String(payload.dropFirst(11)), before: id, after: after) }
         return acceptsMessages && store.handleSidebarDrop([payload], target: id)
+    }
+}
+
+extension NSTextView {
+    func postToggleTrait(_ trait: NSFontTraitMask) {
+        guard let storage = textStorage else { return }
+        let range = selectedRange(), manager = NSFontManager.shared
+        let fallback = typingAttributes[.font] as? NSFont ?? .systemFont(ofSize: 14)
+        let selectedFont = range.length > 0 ? storage.attribute(.font, at: range.location, effectiveRange: nil) as? NSFont ?? fallback : fallback
+        let oblique = range.length > 0 ? storage.attribute(.obliqueness, at: range.location, effectiveRange: nil) as? Double ?? 0 : typingAttributes[.obliqueness] as? Double ?? 0
+        let remove = manager.traits(of: selectedFont).contains(trait) || (trait == .italicFontMask && oblique != 0)
+        func attributes(_ font: NSFont) -> [NSAttributedString.Key: Any] {
+            let converted = remove ? manager.convert(font, toNotHaveTrait: trait) : manager.convert(font, toHaveTrait: trait)
+            var result: [NSAttributedString.Key: Any] = [.font: converted]
+            if trait == .italicFontMask { result[.obliqueness] = !remove && !manager.traits(of: converted).contains(.italicFontMask) ? 0.2 : 0.0 }
+            return result
+        }
+        if range.length == 0 { typingAttributes.merge(attributes(fallback)) { _, new in new } }
+        else {
+            var runs: [(NSRange, NSFont)] = []
+            storage.enumerateAttribute(.font, in: range) { value, subrange, _ in runs.append((subrange, value as? NSFont ?? fallback)) }
+            guard shouldChangeText(in: range, replacementString: nil) else { return }
+            for (subrange, font) in runs { storage.addAttributes(attributes(font), range: subrange) }
+            didChangeText()
+        }
+        window?.makeFirstResponder(self)
+    }
+    func postToggleUnderline() {
+        let range = selectedRange()
+        let current = range.length > 0 ? textStorage?.attribute(.underlineStyle, at: range.location, effectiveRange: nil) as? Int ?? 0 : typingAttributes[.underlineStyle] as? Int ?? 0
+        let value = current == 0 ? NSUnderlineStyle.single.rawValue : 0
+        if range.length == 0 { typingAttributes[.underlineStyle] = value }
+        else {
+            guard shouldChangeText(in: range, replacementString: nil) else { return }
+            textStorage?.addAttribute(.underlineStyle, value: value, range: range); didChangeText()
+        }
+        window?.makeFirstResponder(self)
     }
 }

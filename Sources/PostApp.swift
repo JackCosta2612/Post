@@ -60,10 +60,10 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            self?.store?.commandHeld = event.modifierFlags.contains(.command)
+            self?.updateCommandHints(event.modifierFlags.contains(.command))
             return event
         }
-        NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.store?.commandHeld = false } }
+        NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateCommandHints(false) } }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in guard let self else { return event }; return self.handle(event) }
     }
     func connect(_ store: MailStore) { self.store = store }
@@ -86,7 +86,18 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationWillTerminate(_ notification: Notification) { store?.persist(); store?.flushCache(); if let monitor { NSEvent.removeMonitor(monitor) } }
+    private var hintTask: Task<Void, Never>?
+    private func updateCommandHints(_ held: Bool) {
+        hintTask?.cancel(); store?.commandHeld = false
+        guard held else { return }
+        hintTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
+            self?.store?.commandHeld = true
+        }
+    }
     private func handle(_ event: NSEvent) -> NSEvent? {
+        if event.modifierFlags.contains(.command) { hintTask?.cancel(); store?.commandHeld = false }
         guard Self.promptCount == 0 else { return event }
         guard let store, let shortcut = Shortcut.fromEvent(event) else { return event }
         if let action = store.recordingShortcut {

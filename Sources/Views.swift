@@ -44,7 +44,54 @@ struct MailWindow: View {
     @FocusState private var searchFocused: Bool
     @LocalState private var newLabel = ""
     @LocalState private var showNewLabel = false
+    private var configuredWindow: some View {
+        windowLayout
+        .onAppear { configurePresentation(); DispatchQueue.main.async { if store.compose == nil && store.selectedDraftID == nil { NSApp.keyWindow?.makeFirstResponder(nil) } } }
+        .onChange(of: store.preferences.interfaceFont) { _, _ in configurePresentation() }
+        .onChange(of: store.preferences.accentColor) { _, _ in configurePresentation() }
+        .onChange(of: store.preferences.accentHex) { _, _ in configurePresentation() }
+        .onChange(of: store.visibleMessages.map(\.id)) { _, _ in if store.preferences.cacheMode == "fast" { configurePresentation() } }
+        .onChange(of: store.preferences.readDelay) { _, _ in if let id = store.selectedID { store.scheduleRead(id) } }
+        .onChange(of: store.preferences.markRead) { _, _ in if let id = store.selectedID { store.scheduleRead(id) } }
+        .onChange(of: store.preferences.cacheMode) { _, _ in configurePresentation(); store.warmNearbyThreads() }
+        .coordinateSpace(name: "mailWindow")
+        .onPreferenceChange(MessageFrames.self) { rowFrames = $0 }
+        .ignoresSafeArea(.container, edges: .top)
+        .background(WindowChrome())
+        .buttonStyle(PostButtonStyle())
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: store.preferences.collapsed)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: store.selectedID != nil && !store.bulkMode)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: store.selectedDraftID)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: store.bulkIDs)
+        .background(PostStyle.background)
+        .foregroundStyle(.primary)
+        .tint(PostStyle.accent)
+        .font(PostStyle.font(size: 13))
+        .frame(minWidth: 980, minHeight: 630)
+        .preferredColorScheme(PostStyle.scheme(store.preferences.appearance))
+
+    }
     var body: some View {
+        configuredWindow
+        .sheet(isPresented: $store.showSettings) { SettingsPane().environmentObject(store) }
+        .sheet(item: $store.compose) { draft in ComposePane(initial: draft).environmentObject(store) }
+        .sheet(isPresented: $store.showLabels) { LabelPicker().environmentObject(store) }
+        .alert("Post", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) { Button("OK") { store.error = nil } } message: { Text(store.error ?? "") }
+        .alert("New label", isPresented: $showNewLabel) { TextField("Label name", text: $newLabel); Button("Create") { store.addLabel(newLabel); newLabel = "" }; Button("Cancel", role: .cancel) {} }
+        .postPrompt("Delete drafts?", isPresented: Binding(get: { store.draftToDelete != nil || !store.draftsToDelete.isEmpty }, set: { if !$0 { store.draftToDelete = nil; store.draftsToDelete = [] } }), message: "This deletes the selected drafts from Post and Gmail if they have been synced.", actions: ["Delete", "Cancel"]) { response in
+            if response == 0 {
+                let targets = store.draftsToDelete.isEmpty ? store.draftToDelete.map { [$0] } ?? [] : store.draftsToDelete
+                for draft in targets { store.deleteDraft(draft) }
+            }
+            store.draftToDelete = nil; store.draftsToDelete = []
+        }
+        .onChange(of: store.selectionList) { _, _ in store.reconcileBulkSelection() }
+        .onChange(of: store.selectedDraftID) { _, _ in searchFocused = false }
+        .onChange(of: store.selectedID) { _, _ in searchFocused = false }
+        .onChange(of: store.focusSearch) { _, value in if value { searchFocused = true; store.focusSearch = false } }
+
+    }
+    private var windowLayout: some View {
         HStack(spacing: 0) {
             sidebar
             VStack(spacing: 0) {
@@ -83,46 +130,6 @@ struct MailWindow: View {
                 if store.preferences.showShortcutHints != false || store.undoSendID != nil { footer }
             }
         }
-        .onAppear { configurePresentation(); DispatchQueue.main.async { if store.compose == nil && store.selectedDraftID == nil { NSApp.keyWindow?.makeFirstResponder(nil) } } }
-        .onChange(of: store.preferences.interfaceFont) { _, _ in configurePresentation() }
-        .onChange(of: store.preferences.accentColor) { _, _ in configurePresentation() }
-        .onChange(of: store.preferences.accentHex) { _, _ in configurePresentation() }
-        .onChange(of: store.visibleMessages.map(\.id)) { _, _ in if store.preferences.cacheMode == "fast" { configurePresentation() } }
-        .onChange(of: store.preferences.readDelay) { _, _ in if let id = store.selectedID { store.scheduleRead(id) } }
-        .onChange(of: store.preferences.markRead) { _, _ in if let id = store.selectedID { store.scheduleRead(id) } }
-        .onChange(of: store.preferences.cacheMode) { _, _ in configurePresentation(); store.warmNearbyThreads() }
-        .coordinateSpace(name: "mailWindow")
-        .onPreferenceChange(MessageFrames.self) { rowFrames = $0 }
-        .ignoresSafeArea(.container, edges: .top)
-        .background(WindowChrome())
-        .buttonStyle(PostButtonStyle())
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: store.preferences.collapsed)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: store.selectedID != nil && !store.bulkMode)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: store.selectedDraftID)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: store.bulkIDs)
-        .background(PostStyle.background)
-        .foregroundStyle(.primary)
-        .tint(PostStyle.accent)
-        .font(PostStyle.font(size: 13))
-        .frame(minWidth: 980, minHeight: 630)
-        .preferredColorScheme(PostStyle.scheme(store.preferences.appearance))
-        .sheet(isPresented: $store.showSettings) { SettingsPane().environmentObject(store) }
-        .sheet(item: $store.compose) { draft in ComposePane(initial: draft).environmentObject(store) }
-        .sheet(isPresented: $store.showLabels) { LabelPicker().environmentObject(store) }
-        .alert("Post", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) { Button("OK") { store.error = nil } } message: { Text(store.error ?? "") }
-        .alert("New label", isPresented: $showNewLabel) { TextField("Label name", text: $newLabel); Button("Create") { store.addLabel(newLabel); newLabel = "" }; Button("Cancel", role: .cancel) {} }
-        .postPrompt("Delete drafts?", isPresented: Binding(get: { store.draftToDelete != nil || !store.draftsToDelete.isEmpty }, set: { if !$0 { store.draftToDelete = nil; store.draftsToDelete = [] } }), message: "This deletes the selected drafts from Post and Gmail if they have been synced.", actions: ["Delete", "Cancel"]) { response in
-            if response == 0 {
-                let targets = store.draftsToDelete.isEmpty ? store.draftToDelete.map { [$0] } ?? [] : store.draftsToDelete
-                for draft in targets { store.deleteDraft(draft) }
-            }
-            store.draftToDelete = nil; store.draftsToDelete = []
-        }
-        .onChange(of: store.selectionList) { _, _ in store.reconcileBulkSelection() }
-        .onChange(of: store.selectedDraftID) { _, _ in searchFocused = false }
-        .onChange(of: store.selectedID) { _, _ in searchFocused = false }
-        .onChange(of: store.focusSearch) { _, value in if value { searchFocused = true; store.focusSearch = false } }
-
     }
     private func sidebarRow(_ folder: MailFolder) -> some View {
                         let count = folder.id == "TRASH" || store.preferences.sidebarBadges == false ? 0 : (store.preferences.totalCounts ? folder.totalCount : folder.unreadCount)
@@ -432,7 +439,8 @@ struct ConversationMessage: View {
     let plain: Bool
     var onLayoutReady: (() -> Void)? = nil
     @LocalState private var allowImages = false
-    @LocalState private var originalColors = false
+    @LocalState private var originalColors: Bool? = nil
+    private var useOriginalColors: Bool { originalColors ?? (store.preferences.customEmailColors != true) }
     @LocalState private var showPlainQuote = false
     @LocalState private var htmlReady = false
     private var ready: Bool { message.html.isEmpty || plain || htmlReady }
@@ -450,14 +458,14 @@ struct ConversationMessage: View {
                     Button("Reply") { store.newCompose(kind: "reply", replyingTo: message) }
                     Button("Reply all") { store.newCompose(kind: "replyAll", replyingTo: message) }
                     Button("Forward") { store.newCompose(kind: "forward", replyingTo: message) }
-                    if !message.html.isEmpty { Button(originalColors ? "Use app colors" : "Use original email colors") { originalColors.toggle() } }
+                    if !message.html.isEmpty { Button(useOriginalColors ? "Use app colors" : "Use original email colors") { originalColors = !useOriginalColors } }
                 } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).fixedSize().pointerHover()
             }
             if !message.html.isEmpty && !plain {
                 if !allowImages && !store.preferences.remoteImages {
                     HStack { Text("Remote images are blocked").font(PostStyle.font(size: 11)).foregroundStyle(.secondary); Spacer(); Button("Load images") { allowImages = true }.controlSize(.small) }
                 }
-                HTMLMessage(html: message.html, remoteImages: allowImages || store.preferences.remoteImages, originalColors: originalColors, foldQuotes: true, fontName: store.preferences.readingFont ?? "SF Pro Display", fontSize: store.preferences.readingSize ?? 15, onReady: { htmlReady = $0 })
+                HTMLMessage(html: message.html, remoteImages: allowImages || store.preferences.remoteImages, originalColors: useOriginalColors, foldQuotes: true, fontName: store.preferences.readingFont ?? "SF Pro Display", fontSize: store.preferences.readingSize ?? 15, onReady: { htmlReady = $0 })
                     .transaction { $0.animation = nil }.padding(.horizontal, 6).frame(minHeight: 100).clipShape(RoundedRectangle(cornerRadius: 7))
             } else {
                 let parts = MessageQuote.split(message.body)
@@ -520,7 +528,7 @@ private func detectedLinks(_ text: String) -> AttributedString {
 struct HTMLMessage: View {
     let html: String
     let remoteImages: Bool
-    var originalColors = false
+    var originalColors = true
     var foldQuotes = false
     var fontName = "SF Pro Display"
     var fontSize: Double = 15
@@ -536,7 +544,7 @@ struct HTMLDocument: NSViewRepresentable {
     static let webDataStore = WKWebsiteDataStore.nonPersistent()
     let html: String
     let remoteImages: Bool
-    var originalColors = false
+    var originalColors = true
     var foldQuotes = false
     var fontName = "SF Pro Display"
     var fontSize: Double = 15
@@ -674,8 +682,8 @@ struct HTMLDocument: NSViewRepresentable {
         let images = remoteImages ? "post-image: data: cid:" : "data: cid:"
         let renderedHTML = remoteImages ? MessageHTML.cachedImageURLs(html) : html
         let dark = colorScheme == .dark && !originalColors
-        let colors = originalColors ? "body{background:transparent;color:#242a34}" : "body{background:transparent!important;color:\(dark ? "#e5eaf1" : "#242a34")!important}body *{font-family:inherit!important;color:inherit!important;-webkit-text-fill-color:currentColor!important}p,span,td,th,div,li,table,h1,h2,h3,h4,h5,h6{background-color:transparent!important}p,span,td,li{font-size:inherit!important}a,a *{color:\(dark ? "#9ecafa" : "#176edc")!important}"
-        let document = "<!doctype html><html data-post-render='\(generation)'><head><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; img-src \(images); style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'\"><style>body{font:\(fontSize)px \(MIMEBuilder.htmlEscape(fontName)),sans-serif;color:#242a34;margin:0;padding:12px 0;box-sizing:border-box;line-height:1.65;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}a{color:#176edc}html{overflow:hidden}details.post-quote{margin-top:14px}details.post-quote>summary{cursor:pointer;font-size:12px;color:#7d8b9c;user-select:none}details.post-quote[open]>summary{margin-bottom:12px}\(colors)</style></head><body>\(renderedHTML)</body></html>"
+        let colors = originalColors ? "" : "body{background:transparent!important;color:\(dark ? "#e5eaf1" : "#242a34")!important}body *{font-family:inherit!important;color:inherit!important;-webkit-text-fill-color:currentColor!important}p,span,td,th,div,li,table,h1,h2,h3,h4,h5,h6{background-color:transparent!important}p,span,td,li{font-size:inherit!important}a,a *{color:\(dark ? "#9ecafa" : "#176edc")!important}"
+        let document = "<!doctype html><html data-post-render='\(generation)'><head><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; img-src \(images); style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'\"><style>body{background:white;font:\(fontSize)px \(MIMEBuilder.htmlEscape(fontName)),sans-serif;color:#242a34;margin:0;padding:12px 0;box-sizing:border-box;line-height:1.65;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}a{color:#176edc}html{overflow:hidden}details.post-quote{margin-top:14px}details.post-quote>summary{cursor:pointer;font-size:12px;color:#7d8b9c;user-select:none}details.post-quote[open]>summary{margin-bottom:12px}\(colors)</style></head><body>\(renderedHTML)</body></html>"
         context.coordinator.navigation = view.loadHTMLString(document, baseURL: nil)
     }
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -828,31 +836,8 @@ struct ComposePane: View {
             bodyEditor.setSelectedRange(NSRange(location: 0, length: 0)); bodyEditor.scrollRangeToVisible(NSRange(location: 0, length: 0))
         }
     }
-    private func formatUnderline() {
-        guard let editor = bodyEditor else { return }
-        let range = editor.selectedRange()
-        let current = range.length > 0 ? editor.textStorage?.attribute(.underlineStyle, at: range.location, effectiveRange: nil) as? Int ?? 0 : editor.typingAttributes[.underlineStyle] as? Int ?? 0
-        let value = current == 0 ? 1 : 0
-        if range.length == 0 { editor.typingAttributes[.underlineStyle] = value }
-        else { editor.textStorage?.addAttribute(.underlineStyle, value: value, range: range) }
-        editor.delegate?.textDidChange?(Notification(name: NSText.didChangeNotification, object: editor))
-        NSApp.keyWindow?.makeFirstResponder(editor)
-    }
-    private func formatTrait(_ trait: NSFontTraitMask) {
-        guard let editor = bodyEditor else { return }
-        let manager = NSFontManager.shared, range = editor.selectedRange()
-        let font = (editor.typingAttributes[.font] as? NSFont) ?? .systemFont(ofSize: composeSize)
-        let remove = manager.traits(of: font).contains(trait)
-        if range.length == 0 { editor.typingAttributes[.font] = remove ? manager.convert(font, toNotHaveTrait: trait) : manager.convert(font, toHaveTrait: trait) }
-        else {
-            editor.textStorage?.enumerateAttribute(.font, in: range) { value, subrange, _ in
-                let original = value as? NSFont ?? font
-                editor.textStorage?.addAttribute(.font, value: remove ? manager.convert(original, toNotHaveTrait: trait) : manager.convert(original, toHaveTrait: trait), range: subrange)
-            }
-        }
-        editor.delegate?.textDidChange?(Notification(name: NSText.didChangeNotification, object: editor))
-        NSApp.keyWindow?.makeFirstResponder(editor)
-    }
+    private func formatUnderline() { bodyEditor?.postToggleUnderline() }
+    private func formatTrait(_ trait: NSFontTraitMask) { bodyEditor?.postToggleTrait(trait) }
     private var composerFormatting: some View {
         HStack(spacing: 8) {
             Picker("Font", selection: $composeFont) { ForEach(FontChoices.names, id: \.self) { Text($0).tag($0) } }.labelsHidden().frame(width: 155)

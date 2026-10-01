@@ -74,6 +74,8 @@ struct SettingsPane: View {
                     .modifier(LabelDropTarget(id: label.id, height: 48, store: store, acceptsMessages: false))
             }
         case "Reading":
+            Toggle("Use app colors for email content", isOn: option(\.customEmailColors, false))
+            Text("Off preserves each email’s original colors and layout.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
             Toggle("Group messages into conversations", isOn: option(\.groupConversations, true))
             Toggle("Mark opened messages as read", isOn: $store.preferences.markRead)
             Picker("Mark as read after", selection: option(\.readDelay, 0)) { Text("Immediately").tag(0); ForEach([1, 3, 5, 10, 30], id: \.self) { Text("\($0) seconds").tag($0) } }.disabled(!store.preferences.markRead)
