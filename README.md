@@ -28,8 +28,9 @@ See [build and signing instructions](docs/build.md) for prerequisites, Keychain 
 ## Features
 
 - Light, Dark, or System appearance. Collapsible sidebar with unread or total counts.
-- Customize label visibility in Settings → Sidebar. Mail filters stay pinned at the bottom while overflowing labels scroll above them.
-- Primary includes unlabeled inbox mail. Choose multiple labels to include in Settings → General; custom labels and Promotions are excluded by default, including newly created labels. Gmail's own Primary category is also available.
+- Customize label visibility, numbered badges, and unread or total counts in Settings → Sidebar. Drag labels to reorder them; Primary stays first. Mail filters stay pinned at the bottom while overflowing labels scroll above them.
+- Drag one message or a selection onto a label to move it, onto Primary to return it to the inbox, or onto Trash to discard it. Moves can be undone.
+- Primary includes unlabeled inbox mail. Choose multiple labels to include in Settings → Inbox; custom labels and Promotions are excluded by default, including newly created labels. Gmail's own Primary category is also available.
 - Conversations show incoming mail and sent replies in chronological order. They open at the selected message, with quoted replies collapsed and a reply control on each message.
 - Shift-click, Command-click, and Shift-arrow selection. Bulk label, archive, and Trash without checkboxes.
 - Compose, reply, reply all, forward, attachments, autosaved drafts, and confirmed draft deletion.

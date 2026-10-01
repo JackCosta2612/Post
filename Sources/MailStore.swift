@@ -72,7 +72,48 @@ final class MailStore: ObservableObject {
         currentRemoteIDs = snapshot?.ids ?? []
         nextPage = snapshot?.nextPage
     }
-    var sidebarLabels: [MailFolder] { folders.filter { ($0.id == "primary" || $0.isCustom || $0.id == "CATEGORY_PROMOTIONS") && !(preferences.hiddenSidebarLabels ?? []).contains($0.id) } }
+    var sidebarLabels: [MailFolder] {
+        let values = folders.filter { ($0.id == "primary" || $0.isCustom || $0.id == "CATEGORY_PROMOTIONS") && !(preferences.hiddenSidebarLabels ?? []).contains($0.id) }
+        let order = preferences.sidebarLabelOrder ?? []
+        return values.sorted { left, right in
+            if left.id == "primary" { return right.id != "primary" }
+            if right.id == "primary" { return false }
+            return (order.firstIndex(of: left.id) ?? (order.count + (folders.firstIndex(of: left) ?? 0))) < (order.firstIndex(of: right.id) ?? (order.count + (folders.firstIndex(of: right) ?? 0)))
+        }
+    }
+    func reorderSidebarLabel(_ id: String, before target: String) -> Bool {
+        guard id != target, id != "primary", target != "primary", sidebarLabels.contains(where: { $0.id == id }), sidebarLabels.contains(where: { $0.id == target }) else { return false }
+        var order = preferences.sidebarLabelOrder ?? sidebarLabels.map(\.id)
+        for label in sidebarLabels where !order.contains(label.id) { order.append(label.id) }
+        order.removeAll { $0 == id }
+        guard let index = order.firstIndex(of: target) else { return false }
+        order.insert(id, at: index); preferences.sidebarLabelOrder = order; return true
+    }
+    func messageDragPayload(_ id: String) -> String {
+        let ids = actionIDs.contains(id) ? actionIDs : [id]
+        let payload = MailDrag(ids: Array(ids), source: folderID)
+        return "post-mail:" + String(data: (try? JSONEncoder().encode(payload)) ?? Data(), encoding: .utf8)!
+    }
+    func handleSidebarDrop(_ values: [String], target: String) -> Bool {
+        guard let value = values.first else { return false }
+        if value.hasPrefix("post-label:") { return reorderSidebarLabel(String(value.dropFirst(11)), before: target) }
+        guard value.hasPrefix("post-mail:"), let data = String(value.dropFirst(10)).data(using: .utf8),
+              let payload = try? JSONDecoder().decode(MailDrag.self, from: data),
+              let destination = folders.first(where: { $0.id == target }), target != payload.source else { return false }
+        let ids = Set(payload.ids).intersection(Set(visibleMessages.map(\.id)))
+        guard !ids.isEmpty, payload.source == folderID else { return false }
+        var add: [String] = [], remove: [String] = []
+        if target == "TRASH" { add = ["TRASH"]; remove = ["INBOX"] }
+        else if target == "primary" {
+            add = ["INBOX"]; remove = ["TRASH", "SPAM", "CATEGORY_PROMOTIONS"] + primaryExcludedLabels.map(\.id)
+            if let source = folders.first(where: { $0.id == payload.source }), source.isCustom { remove.append(source.id) }
+            if preferences.primaryMode == "gmail" { add.append("CATEGORY_PERSONAL") }
+        } else if destination.isCustom || target == "CATEGORY_PROMOTIONS" {
+            add = [target]; remove = ["INBOX", "TRASH", "SPAM"]
+            if let source = folders.first(where: { $0.id == payload.source }), source.isCustom { remove.append(source.id) }
+        } else { return false }
+        actOnSelected(add: add, remove: remove, advance: true, ids: ids); return true
+    }
     var sidebarFilters: [MailFolder] { folders.filter { $0.id != "primary" && !$0.isCustom && $0.id != "CATEGORY_PROMOTIONS" } }
     func setSidebarLabel(_ id: String, visible: Bool) {
         var hidden = preferences.hiddenSidebarLabels ?? []
@@ -421,8 +462,8 @@ final class MailStore: ObservableObject {
         } else { updateLocalCounts(); status = "Preview change saved locally" }
         persist()
     }
-    func actOnSelected(add: [String], remove: [String], advance: Bool = false) {
-        let ids = actionIDs
+    func actOnSelected(add: [String], remove: [String], advance: Bool = false, ids requestedIDs: Set<String>? = nil) {
+        let ids = requestedIDs ?? actionIDs
         guard !ids.isEmpty else { return }
         let wasBulk = bulkMode
         let before = visibleMessages
@@ -431,7 +472,7 @@ final class MailStore: ObservableObject {
         for message in before where ids.contains(message.id) { change(message.id, add: add, remove: remove, recordUndo: false) }
         lastUndo = snapshots
         if wasBulk {
-            let remaining = Set(visibleMessages.map(\.id)).intersection(ids)
+            let remaining = Set(visibleMessages.map(\.id)).intersection(bulkIDs)
             bulkIDs = remaining; rangeBase = nil
             if remaining.isEmpty { select(nil) }
             else if !remaining.contains(selectedID ?? "") { selectedID = visibleMessages.first { remaining.contains($0.id) }?.id; selectionAnchor = selectedID }

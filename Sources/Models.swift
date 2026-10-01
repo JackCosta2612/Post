@@ -109,6 +109,8 @@ struct Shortcut: Codable, Equatable {
 }
 
 struct MailPreferences: Codable {
+    var sidebarLabelOrder: [String]? = nil
+    var sidebarBadges: Bool? = nil
     var hiddenSidebarLabels: Set<String>? = nil
     var collapsed = false
     var totalCounts = false
@@ -280,3 +282,5 @@ enum MessageHTML {
     }
 }
 private extension String { var withImageScheme: String { "post-image://" + self } }
+
+struct MailDrag: Codable { var ids: [String]; var source: String }

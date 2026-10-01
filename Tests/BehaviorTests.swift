@@ -283,6 +283,23 @@ struct BehaviorTests {
         check(primaryStore.sidebarFilters.contains { $0.id == "STARRED" } && !primaryStore.sidebarLabels.contains { $0.id == "STARRED" }, "System filters separated from labels")
         primaryStore.setSidebarLabel("confirmations", visible: true)
         check(primaryStore.sidebarLabels.contains { $0.id == "confirmations" }, "Hidden label can be restored")
+        let dragStore = MailStore(directory: directory.appendingPathComponent("drag"))
+        dragStore.preferences.markRead = false
+        check(dragStore.reorderSidebarLabel("rejections", before: "confirmations"), "Sidebar reorder accepts custom labels")
+        check(dragStore.sidebarLabels.firstIndex { $0.id == "rejections" }! < dragStore.sidebarLabels.firstIndex { $0.id == "confirmations" }!, "Sidebar respects saved label order")
+        check(!dragStore.reorderSidebarLabel("primary", before: "rejections"), "Primary stays pinned first")
+        var dragged = dragStore.messages[0]; dragged.labels = ["INBOX"]; dragStore.messages = [dragged]; dragStore.select(dragged.id)
+        check(dragStore.handleSidebarDrop([dragStore.messageDragPayload(dragged.id)], target: "rejections"), "Message drop accepted on label")
+        check(dragStore.messages[0].labels == ["rejections"], "Inbox drop files message under label")
+        dragStore.chooseFolder("rejections"); dragStore.select(dragged.id)
+        check(dragStore.handleSidebarDrop([dragStore.messageDragPayload(dragged.id)], target: "primary"), "Label drop accepted on Primary")
+        check(dragStore.messages[0].labels == ["INBOX"], "Drop back to Primary removes source label")
+        dragStore.chooseFolder("primary"); dragStore.select(dragged.id)
+        check(dragStore.handleSidebarDrop([dragStore.messageDragPayload(dragged.id)], target: "TRASH"), "Drop to Trash accepted")
+        check(dragStore.messages[0].labels == ["TRASH"], "Drop to Trash removes Inbox")
+        dragStore.undo()
+        check(dragStore.messages[0].labels == ["INBOX"], "Drag move supports Undo")
+        check(!dragStore.handleSidebarDrop(["unrelated text"], target: "primary"), "External text cannot move mail")
         print("PASS: \(checks) behavioral checks")
     }
 }

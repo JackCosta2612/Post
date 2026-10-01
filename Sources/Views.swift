@@ -104,7 +104,7 @@ struct MailWindow: View {
 
     }
     private func sidebarRow(_ folder: MailFolder) -> some View {
-                        let count = folder.id == "TRASH" ? 0 : (store.preferences.totalCounts ? folder.totalCount : folder.unreadCount)
+                        let count = folder.id == "TRASH" || store.preferences.sidebarBadges == false ? 0 : (store.preferences.totalCounts ? folder.totalCount : folder.unreadCount)
                         let selected = store.folderID == folder.id
                         return Button { NSApp.keyWindow?.makeFirstResponder(nil); store.chooseFolder(folder.id) } label: {
                             ZStack(alignment: .leading) {
@@ -132,8 +132,19 @@ struct MailWindow: View {
                                             .offset(x: 3, y: -2).allowsHitTesting(false)
                                     }
                                 }
+                            .onDrag { NSItemProvider(object: ("post-label:" + folder.id) as NSString) }
                         }.buttonStyle(PostButtonStyle(inset: 0, selected: selected))
                             .accessibilityLabel(folder.name).help(folder.id == "TRASH" ? folder.name : "\(folder.name): \(count) \(store.preferences.totalCounts ? "messages" : "unread messages")")
+                            .onDrop(of: [UTType.text], isTargeted: nil) { providers in
+                                guard let provider = providers.first, provider.canLoadObject(ofClass: NSString.self) else { return false }
+                                _ = provider.loadObject(ofClass: NSString.self) { value, _ in
+                                    guard let text = value as? String else { return }
+                                    Task { @MainActor in
+                                        withAnimation(.easeInOut(duration: 0.2)) { _ = store.handleSidebarDrop([text], target: folder.id) }
+                                    }
+                                }
+                                return true
+                            }
                             .contextMenu {
                                 Button("Open \(folder.name)") { store.chooseFolder(folder.id) }
                                 Button("Refresh") { store.chooseFolder(folder.id); Task { await store.refresh(manual: true) } }
@@ -267,6 +278,7 @@ struct MessageRow: View {
                 .background(store.bulkMode && store.bulkIDs.contains(message.id) ? PostStyle.bulk : !store.bulkMode && store.selectedID == message.id ? PostStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 10))
                 .overlay { if store.bulkMode && store.bulkIDs.contains(message.id) { RoundedRectangle(cornerRadius: 10).strokeBorder(PostStyle.accent.opacity(0.45), lineWidth: 1) } }
                 .background(GeometryReader { geometry in Color.clear.preference(key: MessageFrames.self, value: [message.id: geometry.frame(in: .named("mailWindow"))]) }).contentShape(Rectangle())
+                .onDrag { NSItemProvider(object: store.messageDragPayload(message.id) as NSString) }
         }.buttonStyle(PostButtonStyle(inset: 0, selected: store.actionIDs.contains(message.id))).accessibilityValue(store.bulkMode && store.bulkIDs.contains(message.id) ? "Selected for bulk actions" : !store.bulkMode && store.selectedID == message.id ? "Open message" : "").padding(.horizontal, 14).padding(.vertical, 3)
         .contextMenu {
             if !store.bulkMode { Button("Reply") { store.select(message.id); store.newCompose(kind: "reply") } }
@@ -790,13 +802,13 @@ struct SettingsPane: View {
     @LocalState private var shortcutText: [String: String] = [:]
     var body: some View {
         HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 7) { Text("Settings").font(.system(size: 16, weight: .semibold)).padding(.bottom, 20); ForEach([("General", "gearshape"), ("Sidebar", "sidebar.left"), ("Downloads", "arrow.down.square"), ("Notifications", "bell"), ("Shortcuts", "keyboard"), ("Account", "person.crop.square")], id: \.0) { name, icon in Button { section = name } label: { Label(name, systemImage: icon).frame(maxWidth: .infinity, alignment: .leading).padding(10).background(section == name ? PostStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 6)) }.buttonStyle(PostButtonStyle()) }; Spacer(); Button("Done") { store.showSettings = false }.keyboardShortcut(.defaultAction) }.padding(20).frame(width: 190).background(PostStyle.sidebar)
+            VStack(alignment: .leading, spacing: 7) { Text("Settings").font(.system(size: 16, weight: .semibold)).padding(.bottom, 20); ForEach([("General", "gearshape"), ("Inbox", "tray"), ("Sidebar", "sidebar.left"), ("Reading", "doc.text"), ("Composing", "square.and.pencil"), ("Downloads", "arrow.down.square"), ("Notifications", "bell"), ("Shortcuts", "keyboard"), ("Account", "person.crop.square")], id: \.0) { name, icon in Button { section = name } label: { Label(name, systemImage: icon).frame(maxWidth: .infinity, alignment: .leading).padding(10).background(section == name ? PostStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 6)) }.buttonStyle(PostButtonStyle()) }; Spacer(); Button("Done") { store.showSettings = false }.keyboardShortcut(.defaultAction) }.padding(20).frame(width: 190).background(PostStyle.sidebar)
             Divider()
             VStack(alignment: .leading, spacing: 22) {
                 Text(section).font(.system(size: 25, weight: .semibold))
                 if section == "General" {
-                    HStack { VStack(alignment: .leading, spacing: 5) { Text("Sidebar counts").fontWeight(.medium); Text("The number beside each label uses this setting.").font(.system(size: 11)).foregroundStyle(.secondary) }; Spacer(); Picker("", selection: $store.preferences.totalCounts) { Text("Unread").tag(false); Text("Total").tag(true) }.pickerStyle(.segmented).frame(width: 170) }
-                    Divider()
+                    Picker("Appearance", selection: Binding(get: { store.preferences.appearance ?? "system" }, set: { store.preferences.appearance = $0 })) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented)
+                } else if section == "Inbox" {
                     Picker("Primary view", selection: Binding(get: { store.preferences.primaryMode ?? "wide" }, set: { store.preferences.primaryMode = $0; store.primarySettingsChanged() })) { Text("Gmail Primary category").tag("gmail"); Text("All inbox categories").tag("wide") }
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Labels included in Primary").fontWeight(.medium)
@@ -807,11 +819,17 @@ struct SettingsPane: View {
                             }
                         } }.frame(height: min(150, CGFloat(store.primaryLabelChoices.count) * 26))
                     }
+                } else if section == "Reading" {
                     Toggle("Mark messages as read when opened", isOn: $store.preferences.markRead)
                     Toggle("Load remote images automatically", isOn: $store.preferences.remoteImages)
-                    Divider(); Text("Signature").fontWeight(.medium); TextEditor(text: $store.preferences.signature).font(.system(size: 12)).frame(height: 90).border(Color.gray.opacity(0.2))
-                    Picker("Appearance", selection: Binding(get: { store.preferences.appearance ?? "system" }, set: { store.preferences.appearance = $0 })) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented)
+                } else if section == "Composing" {
+                    Text("Signature").fontWeight(.medium)
+                    TextEditor(text: $store.preferences.signature).font(.system(size: 12)).frame(height: 120).border(Color.gray.opacity(0.2))
                 } else if section == "Sidebar" {
+                    Toggle("Show numbered badges", isOn: Binding(get: { store.preferences.sidebarBadges ?? true }, set: { store.preferences.sidebarBadges = $0 }))
+                    HStack { VStack(alignment: .leading, spacing: 5) { Text("Sidebar counts").fontWeight(.medium); Text("The number beside each label uses this setting.").font(.system(size: 11)).foregroundStyle(.secondary) }; Spacer(); Picker("", selection: $store.preferences.totalCounts) { Text("Unread").tag(false); Text("Total").tag(true) }.pickerStyle(.segmented).frame(width: 170) }
+                    Divider()
+                    Text("Drag labels in the sidebar to rearrange them. Primary stays first.").font(.system(size: 12)).foregroundStyle(.secondary)
                     Text("Visible labels").fontWeight(.medium)
                     Text("Hidden labels remain in Gmail and can still be used to organize mail.").font(.system(size: 12)).foregroundStyle(.secondary)
                     ScrollView {
