@@ -611,7 +611,7 @@ struct HTMLDocument: NSViewRepresentable {
         const generation = document.documentElement.dataset.postRender;
         // Measure content independently of WebKit's viewport, which can retain an old height.
         const content = document.createElement('div'); content.id = 'post-mail-content';
-        content.style.cssText = 'display:flow-root!important;height:auto!important;min-height:0!important;max-height:none!important;padding:12px 0!important;box-sizing:border-box!important';
+        content.style.cssText = 'display:flow-root!important;height:auto!important;min-height:0!important;max-height:none!important;padding:20px 24px!important;box-sizing:border-box!important';
         while (document.body.firstChild) content.append(document.body.firstChild);
         document.body.append(content);
         document.body.style.setProperty('height', 'auto', 'important');
