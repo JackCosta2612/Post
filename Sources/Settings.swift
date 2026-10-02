@@ -110,7 +110,10 @@ struct SettingsPane: View {
                 HStack { Picker("From", selection: option(\.quietStart, 22)) { ForEach(0..<24) { Text(String(format: "%02d:00", $0)).tag($0) } }; Picker("Until", selection: option(\.quietEnd, 8)) { ForEach(0..<24) { Text(String(format: "%02d:00", $0)).tag($0) } } }
             }
             Toggle("Play a sound", isOn: option(\.notificationSound, true))
-            Picker("New message sound", selection: option(\.notificationSoundName, "Submarine")) {
+            Picker("New message sound", selection: Binding(get: { store.preferences.notificationSoundName ?? "Submarine" }, set: { value in
+                store.preferences.notificationSoundName = value
+                store.previewNewMailSound(value)
+            })) {
                 ForEach(NewMailSound.choices, id: \.file) { sound in Text(sound.name).tag(sound.file) }
                 Text("System default").tag("default")
             }.disabled(!(store.preferences.notificationSound ?? true))

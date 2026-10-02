@@ -27,6 +27,7 @@ final class MailStore: ObservableObject {
     @Published var notificationStatus = "Not checked"
     @Published var notificationTestStatus = ""
     private var downloading: Set<String> = []
+    private var soundPreview: NSSound?
     @Published var showSettings = false
     @Published var showLabels = false
     @Published var draftToDelete: ComposeDraft?
@@ -743,6 +744,17 @@ final class MailStore: ObservableObject {
     }
     func openNotificationSettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") { NSWorkspace.shared.open(url) }
+    }
+    func previewNewMailSound(_ choice: String) {
+        soundPreview?.stop()
+        guard let filename = NewMailSound.filename(for: choice) else {
+            soundPreview = nil
+            NSSound.beep()
+            return
+        }
+        soundPreview = NSSound(contentsOf: URL(fileURLWithPath: "/System/Library/Sounds/" + filename), byReference: true)
+        soundPreview?.loops = false
+        soundPreview?.play()
     }
     private func newMailSound() -> UNNotificationSound {
         guard let filename = NewMailSound.filename(for: preferences.notificationSoundName) else { return .default }
