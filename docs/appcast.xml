@@ -1,0 +1,22 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Post</title>
+        <item>
+            <title>0.2.3</title>
+            <pubDate>Fri, 02 Oct 2026 21:16:16 +0200</pubDate>
+            <sparkle:version>44</sparkle:version>
+            <sparkle:shortVersionString>0.2.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[Post 0.2.3
+
+- Signed in-app updates through GitHub. Check for updates in Post or enable automatic checks and installation in Settings → Account.
+- Release notes appear once after launching a newer version.
+- Includes the sidebar transitions, original-color email padding, badge fixes, sound selection and cursor improvements from 0.2.2.
+
+Install this version manually once to enable future in-app updates. Download the universal app zip for Apple silicon and Intel Macs, extract it and move Post to Applications. The app is locally signed and is not Apple-notarized. Each user supplies their own Google Desktop OAuth client.
+]]></description>
+            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.3/Post-v0.2.3.zip" length="4963395" type="application/octet-stream" sparkle:edSignature="oD9+eJp9HlfSyznMH/RZVugkwEefSGGj5xKFujR2dPpw4WXixzMlthSgia6lZQUFYstnnbYYgRL4dblmf2ZtCw=="/>
+        </item>
+    </channel>
+</rss>

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3 · 2 October 2026
+
+- Add signed Sparkle updates hosted on GitHub, with automatic check and installation preferences.
+- Show release notes once after a version upgrade.
+- Publish a universal app for Apple silicon and Intel Macs.
+
 ## 0.2.2 · 2 October 2026
 
 - Add a subtle transition when navigating between sidebar sections, respecting Reduce Motion.

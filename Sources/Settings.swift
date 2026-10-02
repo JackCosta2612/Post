@@ -148,6 +148,8 @@ struct SettingsPane: View {
             GroupBox("Updates") {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Post \(PostUpdates.version) · Build \(PostUpdates.build)")
+                    Toggle("Check for updates automatically", isOn: Binding(get: { updates.automaticChecks }, set: { updates.automaticChecks = $0 }))
+                    Toggle("Download and install updates automatically", isOn: Binding(get: { updates.automaticInstallation }, set: { updates.automaticInstallation = $0 }))
                     Button(updates.checking ? "Checking…" : "Check for updates") { Task { await updates.check() } }.disabled(updates.checking)
                     if !updates.status.isEmpty { Text(updates.status).font(PostStyle.font(size: 12)) }
                     if let url = updates.releaseURL { Link("View release", destination: url) }

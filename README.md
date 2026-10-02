@@ -1,6 +1,6 @@
 # Post
 
-[![Latest release](https://img.shields.io/badge/release-v0.2.2-477fb4)](https://github.com/JackCosta2612/Post/releases/tag/v0.2.2) [![Checks](https://github.com/JackCosta2612/Post/actions/workflows/checks.yml/badge.svg)](https://github.com/JackCosta2612/Post/actions) [![MIT](https://img.shields.io/badge/license-MIT-697783)](LICENSE)
+[![Latest release](https://img.shields.io/badge/release-v0.2.3-477fb4)](https://github.com/JackCosta2612/Post/releases/tag/v0.2.3) [![Checks](https://github.com/JackCosta2612/Post/actions/workflows/checks.yml/badge.svg)](https://github.com/JackCosta2612/Post/actions) [![MIT](https://img.shields.io/badge/license-MIT-697783)](LICENSE)
 
 A native SwiftUI email client for macOS and one Gmail account. Labels, keyboard navigation, and a quiet three-pane layout are the focus.
 
@@ -15,7 +15,9 @@ https://github.com/user-attachments/assets/f331c8a5-f2b5-4768-816f-6a3f7d1f7de0
 
 ## Try it
 
-Requires macOS 14 or later and Apple's Command Line Tools or Xcode. There are no package dependencies and no paid Apple developer membership is needed for a local build.
+Requires macOS 14 or later. [Download Post](https://github.com/JackCosta2612/Post/releases/latest), extract the app archive and move Post to Applications. Version 0.2.3 enables signed in-app updates for future releases.
+
+To build from source, install Apple's Command Line Tools or Xcode. The build fetches a verified copy of Sparkle. No paid Apple developer membership is needed for a local build.
 
 ```sh
 git clone https://github.com/JackCosta2612/Post.git

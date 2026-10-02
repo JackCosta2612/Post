@@ -17,7 +17,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.2.2</string>
+	<string>0.2.3</string>
 	<key>CFBundleVersion</key>
 	<string>2</string>
 	<key>LSMinimumSystemVersion</key>
@@ -28,5 +28,10 @@
 	<string>Copyright © 2026 Post contributors. MIT licensed.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+<key>SUFeedURL</key><string>https://raw.githubusercontent.com/JackCosta2612/Post/main/docs/appcast.xml</string>
+<key>SUPublicEDKey</key><string>NmghGZTxFQU2SQuUm1L2FDppiTdVWzGOeRrVTUKKQSY=</string>
+<key>SUEnableAutomaticChecks</key><true/>
+<key>SUAutomaticallyUpdate</key><false/>
+<key>SUVerifyUpdateBeforeExtraction</key><true/>
 </dict>
 </plist>

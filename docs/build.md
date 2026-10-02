@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-Use macOS 14 or later. Install Apple's Command Line Tools with `xcode-select --install`, or install Xcode and select its toolchain. Swift 5.9 or later is required. Accept any Apple license yourself when prompted. The build uses SwiftUI, AppKit, WebKit, Security, Network, and UserNotifications from the macOS SDK.
+Use macOS 14 or later. Install Apple's Command Line Tools with `xcode-select --install`, or install Xcode and select its toolchain. Swift 5.9 or later is required. Accept any Apple license yourself when prompted. The build uses SwiftUI, AppKit, WebKit, Security, Network, and UserNotifications from the macOS SDK, plus pinned Sparkle 2.10.0 for updates. The build downloads Sparkle and verifies its checksum.
 
 ## Local signing
 

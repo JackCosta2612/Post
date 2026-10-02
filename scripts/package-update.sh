@@ -1,0 +1,17 @@
+#!/bin/zsh
+set -euo pipefail
+ROOT="${0:A:h:h}"
+VERSION="$(cat "$ROOT/VERSION")"
+OUT="$ROOT/.build/updates"
+mkdir -p "$OUT" "$ROOT/.build/intel"
+POST_ARCH=arm64 POST_APP_OUTPUT="$ROOT/.build/updates/Post.app" "$ROOT/build.sh"
+POST_ARCH=x86_64 POST_APP_OUTPUT="$ROOT/.build/intel/Post.app" "$ROOT/build.sh"
+lipo -create "$OUT/Post.app/Contents/MacOS/Post" "$ROOT/.build/intel/Post.app/Contents/MacOS/Post" -output "$OUT/Post.app/Contents/MacOS/Post.universal"
+mv "$OUT/Post.app/Contents/MacOS/Post.universal" "$OUT/Post.app/Contents/MacOS/Post"
+codesign --force --sign "${POST_SIGNING_IDENTITY:-Post Local Development}" "$OUT/Post.app"
+codesign --verify --deep --strict "$OUT/Post.app"
+ditto -c -k --sequesterRsrc --keepParent "$OUT/Post.app" "$OUT/Post-v$VERSION.zip"
+cp "$ROOT/RELEASE_NOTES.md" "$OUT/Post-v$VERSION.md"
+"$ROOT/.build/sparkle/bin/generate_appcast" --account com.jack.Post.updates --maximum-deltas 0 --embed-release-notes --download-url-prefix "https://github.com/JackCosta2612/Post/releases/download/v$VERSION/" "$OUT"
+cp "$OUT/appcast.xml" "$ROOT/docs/appcast.xml"
+echo "Signed update: $OUT/Post-v$VERSION.zip"

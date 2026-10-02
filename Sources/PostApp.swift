@@ -4,12 +4,14 @@ import UserNotifications
 
 @main
 struct PostApp: App {
+    @StateObject private var updates = PostUpdates.shared
     @StateObject private var store = MailStore()
     @NSApplicationDelegateAdaptor(PostDelegate.self) private var delegate
     var body: some Scene {
         WindowGroup("Post") {
             MailWindow().environmentObject(store)
-                .onAppear { delegate.connect(store); store.start() }
+                .onAppear { delegate.connect(store); store.start(); updates.start() }
+                .sheet(isPresented: $updates.notesVisible) { ReleaseNotesPane() }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1370, height: 860)
