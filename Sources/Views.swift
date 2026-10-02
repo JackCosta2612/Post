@@ -925,15 +925,35 @@ struct ComposePane: View {
 }
 
 struct PointerHover: ViewModifier {
-    @LocalState private var hovering = false
     @Environment(\.isEnabled) private var enabled
     func body(content: Content) -> some View {
-        content.onHover { value in
-            let next = value && enabled
-            guard next != hovering else { return }
-            hovering = next
-            if next { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-        }.onDisappear { if hovering { NSCursor.pop(); hovering = false } }
+        content.background(PointerCursorRegion(enabled: enabled))
+    }
+}
+private struct PointerCursorRegion: NSViewRepresentable {
+    let enabled: Bool
+    func makeNSView(context: Context) -> CursorView { CursorView() }
+    func updateNSView(_ view: CursorView, context: Context) {
+        if view.enabled != enabled {
+            view.enabled = enabled
+            view.window?.invalidateCursorRects(for: view)
+        }
+    }
+    final class CursorView: NSView {
+        var enabled = true
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        override func resetCursorRects() {
+            super.resetCursorRects()
+            // Let AppKit restore the cursor after menus, drags and window changes.
+            // Restrict it to the visible area, including clipped sidebar rows.
+            if enabled && !isHiddenOrHasHiddenAncestor && !visibleRect.isEmpty {
+                addCursorRect(visibleRect, cursor: .pointingHand)
+            }
+        }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            window?.invalidateCursorRects(for: self)
+        }
     }
 }
 extension View {
