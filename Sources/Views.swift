@@ -112,7 +112,7 @@ struct MailWindow: View {
                 topBar
                 RefreshStrip(active: store.manualRefreshing).frame(height: 2)
                 HStack(spacing: 0) {
-                    messageList.frame(width: store.preferences.collapsed ? 370 : 330)
+                    messageList.frame(width: store.preferences.collapsed ? 370 : 330).modifier(SectionNavigationTransition(section: store.folderID))
                     ZStack {
                         emptyReading.opacity(store.bulkMode ? 0 : 1).accessibilityHidden(store.bulkMode)
                         GeometryReader { geometry in
@@ -1178,5 +1178,22 @@ final class PostImageLoader: NSObject, WKURLSchemeHandler {
         waiting[original]?.removeValue(forKey: ObjectIdentifier(task))
         if waiting[original]?.isEmpty == true { waiting.removeValue(forKey: original) }
         // Keep the shared download alive for nearby messages and the disk cache.
+    }
+}
+
+private struct SectionNavigationTransition: ViewModifier {
+    let section: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @LocalState private var settled = true
+    func body(content: Content) -> some View {
+        content.opacity(settled ? 1 : 0.82).offset(y: settled ? 0 : 4)
+            .task(id: section) {
+                guard !reduceMotion else { settled = true; return }
+                var transaction = Transaction(); transaction.disablesAnimations = true
+                withTransaction(transaction) { settled = false }
+                try? await Task.sleep(for: .milliseconds(16))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: 0.18)) { settled = true }
+            }
     }
 }

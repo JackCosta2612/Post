@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2 · 2 October 2026
+
+- Add a subtle transition when navigating between sidebar sections, respecting Reduce Motion.
+- Preserve padding inside email content with original colors in light and dark mode.
+- Correct label badge counts to exclude Trash and Spam.
+- Add Submerge as the default notification sound and preview selectable sounds.
+- Improve hand-cursor reliability after menus, dragging and layout changes.
+
 ## 0.2.1 · 1 October 2026
 
 - Add visible update controls to Account settings and the account menu.
