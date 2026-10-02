@@ -10,7 +10,7 @@ Post’s settings are grouped by task:
 | Reading | Conversation grouping, read delay, font, text size and remote images |
 | Composing | Default font, size, color, spacing and signature |
 | Sending | Undo Send delay and scheduled delivery behavior |
-| Notifications | Primary, all mail or selected labels; sender allowlist; quiet hours; sound; sender, subject and excerpt visibility; foreground banners |
+| Notifications | Primary, all mail or selected labels; sender allowlist; quiet hours; new-message sound (Submerge by default); sender, subject and excerpt visibility; foreground banners |
 | Shortcuts | Action shortcuts, label shortcuts and bottom hint visibility |
 | Storage & downloads | Cache mode, local size, clearing downloaded media and attachment destination |
 | Account | Gmail connection and setup |

@@ -154,6 +154,7 @@ struct MailPreferences: Codable {
     var downloadDirectory: String? = nil
     var notificationScope: String? = nil
     var notificationSound: Bool? = nil
+    var notificationSoundName: String? = nil
     var notificationPreview: Bool? = nil
     var notificationForeground: Bool? = nil
 }
@@ -326,3 +327,19 @@ enum MessageHTML {
 private extension String { var withImageScheme: String { "post-image://" + self } }
 
 struct MailDrag: Codable { var ids: [String]; var source: String }
+
+// macOS keeps the original filenames for its renamed alert sounds.
+enum NewMailSound {
+    static let choices: [(name: String, file: String)] = [
+        ("Submerge", "Submarine"), ("Breeze", "Blow"), ("Bubble", "Pop"),
+        ("Crystal", "Glass"), ("Funky", "Funk"), ("Hero", "Hero"),
+        ("Jump", "Frog"), ("Mezzo", "Basso"), ("Pebble", "Bottle"),
+        ("Pluck", "Purr"), ("Pong", "Ping"), ("Sonumi", "Sosumi"),
+        ("Sonar", "Morse"), ("Tink", "Tink")
+    ]
+    static func filename(for choice: String?) -> String? {
+        if choice == "default" { return nil }
+        let file = choices.first { $0.file == (choice ?? "Submarine") }?.file ?? "Submarine"
+        return file + ".aiff"
+    }
+}

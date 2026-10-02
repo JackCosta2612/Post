@@ -744,6 +744,20 @@ final class MailStore: ObservableObject {
     func openNotificationSettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") { NSWorkspace.shared.open(url) }
     }
+    private func newMailSound() -> UNNotificationSound {
+        guard let filename = NewMailSound.filename(for: preferences.notificationSoundName) else { return .default }
+        // Use a local copy of the Mac's sound, rather than distributing Apple audio.
+        let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+        let directory = library.appendingPathComponent("Sounds", isDirectory: true)
+        let target = directory.appendingPathComponent("Post-" + filename)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            if !FileManager.default.fileExists(atPath: target.path) {
+                try FileManager.default.copyItem(at: URL(fileURLWithPath: "/System/Library/Sounds/" + filename), to: target)
+            }
+            return UNNotificationSound(named: UNNotificationSoundName(target.lastPathComponent))
+        } catch { return .default }
+    }
     func testNotification() {
         Task {
             do {
@@ -751,7 +765,7 @@ final class MailStore: ObservableObject {
                 guard try await center.requestAuthorization(options: [.alert, .sound, .badge]) else { refreshNotificationStatus(); return }
                 let content = UNMutableNotificationContent(); content.title = "Post"; content.body = "Notifications are ready."
                 content.userInfo = ["test": true]
-                if preferences.notificationSound ?? true { content.sound = .default }
+                if preferences.notificationSound ?? true { content.sound = newMailSound() }
                 try await center.add(UNNotificationRequest(identifier: "Post-test", content: content, trigger: nil))
                 notificationTestStatus = "Test sent to macOS Notification Center."
                 refreshNotificationStatus()
@@ -765,7 +779,7 @@ final class MailStore: ObservableObject {
         if preferences.showNotificationSender == false { c.title = "Post" }
         if preferences.showNotificationSubject == false { c.body = "You have new mail." }
         if preferences.showNotificationBody == true { c.body += "\n" + String(message.snippet.prefix(160)) }
-        if preferences.notificationSound ?? true { c.sound = .default }
+        if preferences.notificationSound ?? true { c.sound = newMailSound() }
         c.userInfo = ["messageID": message.id]
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: message.id, content: c, trigger: nil)) { error in
             if let error { Task { @MainActor in self.status = "Notification could not be delivered: \(error.localizedDescription)" } }

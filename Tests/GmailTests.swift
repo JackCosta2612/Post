@@ -18,6 +18,9 @@ struct GmailTests {
     static func main() async throws {
         var checks = 0
         func check(_ value: Bool, _ name: String) { checks += 1; if !value { fatalError("FAILED: \(name)") } }
+        check(NewMailSound.filename(for: nil) == "Submarine.aiff", "Existing preferences default to Submerge")
+        check(NewMailSound.filename(for: "default") == nil, "System default sound remains selectable")
+        check(NewMailSound.filename(for: "Glass") == "Glass.aiff", "Selected sound maps to its macOS audio file")
         let bodyPart: [String: Any] = ["mimeType": "text/html", "headers": [["name": "Content-ID", "value": "<body-html>"]], "body": ["data": Data("<p>LinkedIn-style body</p>".utf8).base64URL]]
         let parsedBody = try GmailClient.parseMessage(["id": "mime", "payload": bodyPart])
         check(parsedBody.html == "<p>LinkedIn-style body</p>" && parsedBody.attachments.isEmpty, "HTML with Content-ID is rendered as a body, not an image attachment")
