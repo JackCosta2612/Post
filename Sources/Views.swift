@@ -383,12 +383,13 @@ struct ReadingPane: View {
     @LocalState private var centeringID: String?
     @LocalState private var selectedBodyReady = false
     @LocalState private var positionedID: String?
+    @LocalState private var automaticPositioning = true
     private var scrollTarget: String {
         store.threadMessages.first?.id == store.selectedID ? "thread-top" : (store.selectedID ?? "thread-top")
     }
     @LocalState private var centerTask: Task<Void, Never>?
     private func settleCenter(_ proxy: ScrollViewProxy, readyID: String) {
-        guard let target = centeringID, target == store.selectedID else { return }
+        guard automaticPositioning, let target = centeringID, target == store.selectedID else { return }
         if readyID == target { selectedBodyReady = true }
         centerTask?.cancel()
         centerTask = Task { @MainActor in
@@ -398,7 +399,8 @@ struct ReadingPane: View {
             await Task.yield()
             guard !Task.isCancelled, store.selectedID == target else { return }
             positionedID = target
-            centeringID = nil
+            // Keep the anchor while asynchronous media changes earlier message heights.
+            // User scrolling ends this behavior immediately.
         }
     }
     var body: some View {
@@ -441,7 +443,7 @@ struct ReadingPane: View {
                         }
                         .opacity(store.threadMessages.count <= 1 || positionedID == selected.id ? 1 : 0)
                         .task(id: selected.id) {
-                            centerTask?.cancel(); centeringID = selected.id; selectedBodyReady = selected.html.isEmpty || plain
+                            centerTask?.cancel(); automaticPositioning = true; centeringID = selected.id; selectedBodyReady = selected.html.isEmpty || plain
                             if store.threadMessages.count <= 1 {
                                 centeringID = nil; positionedID = selected.id
                                 proxy.scrollTo("thread-top", anchor: .top)
@@ -454,6 +456,7 @@ struct ReadingPane: View {
                             if selectedBodyReady { settleCenter(proxy, readyID: selected.id) }
                         }
                         .onChange(of: store.threadMessages.map(\.id)) { _, _ in
+                            guard automaticPositioning else { return }
                             guard store.threadMessages.count > 1 else { proxy.scrollTo("thread-top", anchor: .top); positionedID = selected.id; return }
                             centeringID = selected.id
                             proxy.scrollTo(scrollTarget, anchor: .top)
@@ -465,6 +468,8 @@ struct ReadingPane: View {
                 }
             }
         }.animation(nil, value: store.selectedID).background(PostStyle.surface).onChange(of: store.selectedID) { _, _ in plain = false }
+        .onReceive(NotificationCenter.default.publisher(for: NSScrollView.willStartLiveScrollNotification)) { _ in automaticPositioning = false; centeringID = nil; centerTask?.cancel() }
+        .onReceive(NotificationCenter.default.publisher(for: .init("PostThreadUserScrolled"))) { _ in automaticPositioning = false; centeringID = nil; centerTask?.cancel() }
     }
 }
 
@@ -501,7 +506,7 @@ struct ConversationMessage: View {
                 if !allowImages && !store.preferences.remoteImages {
                     HStack { Text("Remote images are blocked").font(PostStyle.font(size: 11)).foregroundStyle(.secondary); Spacer(); Button("Load images") { allowImages = true }.controlSize(.small) }
                 }
-                HTMLMessage(html: message.html, remoteImages: allowImages || store.preferences.remoteImages, originalColors: useOriginalColors, foldQuotes: true, fontName: store.preferences.readingFont ?? "SF Pro Display", fontSize: store.preferences.readingSize ?? 15, onReady: { htmlReady = $0 })
+                HTMLMessage(html: message.html, remoteImages: allowImages || store.preferences.remoteImages, originalColors: useOriginalColors, foldQuotes: true, fontName: store.preferences.readingFont ?? "SF Pro Display", fontSize: store.preferences.readingSize ?? 15, onReady: { htmlReady = $0; if $0 { onLayoutReady?() } })
                     .transaction { $0.animation = nil }.padding(.horizontal, 6).frame(minHeight: 100).clipShape(RoundedRectangle(cornerRadius: 7))
             } else {
                 let parts = MessageQuote.split(message.body)
@@ -521,7 +526,6 @@ struct ConversationMessage: View {
             Button("Reply") { store.newCompose(kind: "reply", replyingTo: message) }.font(PostStyle.font(size: 12)).buttonStyle(PostButtonStyle())
         }
         .onAppear { if ready { onLayoutReady?() } }
-        .onChange(of: htmlReady) { _, value in if value { onLayoutReady?() } }
         .opacity(ready ? 1 : 0)
         .allowsHitTesting(ready).accessibilityHidden(!ready)
         .transaction { $0.animation = nil }
@@ -540,7 +544,7 @@ final class ThreadWebView: WKWebView {
                   self.bounds.contains(self.convert(event.locationInWindow, from: nil)) else { return event }
             var parent = self.superview
             while let current = parent {
-                if let scroll = current as? NSScrollView { scroll.scrollWheel(with: event); return nil }
+                if let scroll = current as? NSScrollView { NotificationCenter.default.post(name: .init("PostThreadUserScrolled"), object: self); scroll.scrollWheel(with: event); return nil }
                 parent = current.superview
             }
             return event
@@ -573,6 +577,7 @@ struct HTMLMessage: View {
     var body: some View {
         HTMLDocument(html: html, remoteImages: remoteImages, originalColors: originalColors, foldQuotes: foldQuotes, fontName: fontName, fontSize: fontSize, onReady: onReady, height: $height)
             .frame(height: height)
+            .onChange(of: height) { _, _ in onReady?(true) }
             .background(originalColors ? Color.white : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 8))
     }

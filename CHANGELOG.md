@@ -7,6 +7,7 @@
 - Cached message-list filtering and indexing to reduce repeated work during interface updates.
 - Balanced mode preloads two nearby threads; faster mode preloads six.
 - Refined transitions, button feedback, Settings spacing and text contrast.
+- Kept selected thread messages anchored while earlier inline images load; manual scrolling releases the anchor.
 
 ## 0.2.3 · 2 October 2026
 
