@@ -148,6 +148,9 @@ struct MailPreferences: Codable {
     var markRead = true
     var shortcuts = Shortcut.defaults
     var signature = ""
+    var learnLabels: Bool? = nil
+    var automaticLabeling: Bool? = nil
+    var automaticLabelTargets: Set<String>? = nil
     var primaryMode: String? = nil
     var primaryIncludedLabels: Set<String>? = nil
     var appearance: String? = nil
@@ -215,6 +218,7 @@ struct MailCache: Codable {
     var preferences = MailPreferences()
     var folderSnapshots: [String: FolderSnapshot]? = nil
     var completedThreads: [String]? = nil
+    var labelLearning: LabelLearning? = nil
 }
 
 extension Data {
@@ -342,5 +346,79 @@ enum NewMailSound {
         if choice == "default" { return nil }
         let file = choices.first { $0.file == (choice ?? "Submarine") }?.file ?? "Submarine"
         return file + ".aiff"
+    }
+}
+
+// A bounded, on-device classifier trained only from explicit label choices.
+struct LabelExample: Codable, Identifiable {
+    var id: String
+    var target: String
+    var sender: String
+    var terms: [String: Double]
+    var updated: Date
+}
+struct AutomaticLabelMove: Codable, Identifiable {
+    var id = UUID().uuidString
+    var messageID: String
+    var target: String
+    var subject: String
+    var previousLabels: Set<String>
+    var date = Date()
+}
+struct LabelLearning: Codable {
+    static let primary = "__primary__"
+    var examples: [LabelExample] = []
+    var recentMoves: [AutomaticLabelMove] = []
+    static func terms(_ message: MailMessage) -> [String: Double] {
+        let ignored = Set("the and for you your this that with from have has was are will our not but can please thanks thank regards best dear hello hi kind team email message unsubscribe click http https www com re fwd on to of a in it is be at as we i an or by il la le lo di da del della che per con una un e è si non grazie saluti buongiorno cordiali".split(separator: " ").map(String.init))
+        func words(_ text: String) -> [String] {
+            let clean = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            return clean.components(separatedBy: CharacterSet.letters.inverted).filter { $0.count >= 3 && $0.count <= 30 && !ignored.contains($0) }
+        }
+        var result: [String: Double] = [:]
+        for word in Set(words(message.subject)) { result[word] = 4 }
+        // Ignore repeated quoted history and signatures; cap the amount of text processed.
+        let text = MessageQuote.split(message.body).body.components(separatedBy: "\n--").first ?? message.body
+        for word in Set(words(String(text.prefix(6000))).prefix(180)) { result[word] = max(result[word] ?? 0, 1) }
+        return result
+    }
+    mutating func learn(_ message: MailMessage, target: String) {
+        let features = Self.terms(message)
+        guard features.count >= 3 else { return }
+        examples.removeAll { $0.id == message.id }
+        examples.append(.init(id: message.id, target: target, sender: message.senderAddress.lowercased(), terms: features, updated: Date()))
+        if examples.count > 1000 { examples.removeFirst(examples.count - 1000) }
+    }
+    func prediction(_ message: MailMessage, allowed: Set<String>) -> String? {
+        let query = Self.terms(message)
+        guard query.count >= 3 else { return nil }
+        let usable = examples.filter { allowed.contains($0.target) || $0.target == Self.primary }
+        guard !usable.isEmpty else { return nil }
+        let groups = Dictionary(grouping: usable, by: \.target)
+        // Terms repeated across different labels carry less evidence than distinctive content.
+        let prevalence = groups.values.reduce(into: [String: Int]()) { counts, values in
+            for word in Set(values.flatMap { $0.terms.keys }) { counts[word, default: 0] += 1 }
+        }
+        func score(_ example: LabelExample) -> Double {
+            func weight(_ word: String, _ amount: Double) -> Double { amount / Double(prevalence[word] ?? 1) }
+            let shared = query.reduce(0.0) { sum, pair in sum + weight(pair.key, min(pair.value, example.terms[pair.key] ?? 0)) }
+            let total = query.reduce(0.0) { $0 + weight($1.key, $1.value) } + example.terms.reduce(0.0) { $0 + weight($1.key, $1.value) }
+            // Sender agreement supports content evidence, but never substitutes for it.
+            let content = total > 0 ? 2 * shared / total : 0
+            return min(1, content + (content >= 0.55 && example.sender == message.senderAddress.lowercased() ? 0.05 : 0))
+        }
+        var ranked: [(String, Double, Int)] = []
+        for (target, values) in groups {
+            let scores = values.filter { $0.id != message.id }.map(score).sorted(by: >)
+            let neighbors = Array(scores.prefix(3))
+            let sum: Double = neighbors.reduce(0.0) { $0 + $1 }
+            let mean: Double = neighbors.isEmpty ? 0.0 : sum / Double(neighbors.count)
+            let strong = neighbors.filter { $0 >= 0.65 }.count
+            ranked.append((target, mean, strong))
+        }
+        ranked.sort { $0.1 == $1.1 ? $0.0 < $1.0 : $0.1 > $1.1 }
+        guard let best = ranked.first, best.0 != Self.primary, best.2 >= 3, best.1 >= 0.72,
+              best.1 - (ranked.dropFirst().first?.1 ?? 0) >= 0.15 else { return nil }
+        return best.0
     }
 }

@@ -1,9 +1,7 @@
-Post 0.2.4
+Post 0.2.5
 
-- Search all mail, including archived messages, Spam and Trash, or limit results to the current folder. Downloaded matches appear immediately while Gmail finds more results.
-- Conversations display their text before inline images finish loading. Opened threads stay cached across launches and refresh when Gmail reports changes.
-- Balanced mode preloads two nearby conversations. Faster mode preloads six. Concurrent requests for the same conversation share one download.
-- Softer sidebar transitions and button feedback, with reduced motion support.
-- Settings have more space, consistent cards and clearer secondary text in light and dark mode.
+- Post learns from your manual label moves using sender, subject and unquoted message content. Learning runs entirely on your Mac.
+- After at least three strong matching examples, clear new arrivals move to their label and leave the inbox. Uncertain messages stay in the inbox. Automatic moves never train themselves.
+- Settings → Sorting lets you pause sorting, choose destinations, learn from already organized downloaded mail, reset learning and undo recent automatic moves. Undo also teaches a correction.
 
-Use Post → Check for updates to install this release.
+No external AI service, API key or ongoing fees are needed. Sorting runs while Post is open and does not reorganize your historical inbox.

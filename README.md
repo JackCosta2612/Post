@@ -1,6 +1,6 @@
 # Post
 
-[![Latest release](https://img.shields.io/badge/release-v0.2.4-477fb4)](https://github.com/JackCosta2612/Post/releases/tag/v0.2.4) [![Checks](https://github.com/JackCosta2612/Post/actions/workflows/checks.yml/badge.svg)](https://github.com/JackCosta2612/Post/actions) [![MIT](https://img.shields.io/badge/license-MIT-697783)](LICENSE)
+[![Latest release](https://img.shields.io/badge/release-v0.2.5-477fb4)](https://github.com/JackCosta2612/Post/releases/tag/v0.2.5) [![Checks](https://github.com/JackCosta2612/Post/actions/workflows/checks.yml/badge.svg)](https://github.com/JackCosta2612/Post/actions) [![MIT](https://img.shields.io/badge/license-MIT-697783)](LICENSE)
 
 A native SwiftUI email client for macOS and one Gmail account. Labels, keyboard navigation, and a quiet three-pane layout are the focus.
 
@@ -38,12 +38,13 @@ See [build and signing instructions](docs/build.md) for prerequisites, Keychain 
 | --- | --- |
 | **An inbox you choose** | Decide which labels belong in Primary. Filter any view to unread mail. |
 | **Keep moving** | Arrow-key navigation, selection without checkboxes, and custom label shortcuts. |
+| **Learns your labels** | Local learning follows your manual moves. Clear matches sort automatically; uncertain mail stays in the inbox. |
 | **A place for everything** | Reorder labels, hide the ones you don’t use, and move messages by dragging. |
 | **The whole conversation** | Threads open at the selected message. Earlier quotes stay folded away. |
 | **Write when it suits you** | Rich text, attachments, saved drafts, Undo Send, and scheduled sending. |
 | **Make it yours** | Light and dark themes, accent colors, separate fonts, and adjustable list density. |
 
-Search filters and highlights the loaded list. Mail is cached for offline reading, with a faster cache option for media and conversations. Notifications can follow selected labels or senders, respect quiet hours, and hide private details. [Explore the settings](docs/settings.md).
+Search spans all mail, including Trash and Spam, with an option to search only the current folder. Cached matches appear immediately while Gmail finds more results. Mail is cached for offline reading, with a faster cache option for media and conversations. Notifications can follow selected labels or senders, respect quiet hours, and hide private details. [Explore the settings](docs/settings.md).
 
 ## Stay up to date
 

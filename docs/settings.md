@@ -58,3 +58,13 @@ Dragging a label shows a horizontal insertion line above or below its destinatio
 Email content preserves original colors by default. Enable “Use app colors for email content” under Reading to apply Post’s light/dark recoloring. Hold Command for 1.5 seconds without pressing another key to show label shortcut hints. Composer formatting uses the standard Command-B, Command-I, and Command-U shortcuts; each toggles its formatting.
 
 The header count uses section totals from Gmail. The Unread button beside the section title filters only that section, with independent states for each label. It queries unread mail beyond the initial loaded page.
+
+## Local label learning
+
+Settings → Sorting controls learning and automatic moves. Both are enabled by default, but sorting starts only after you provide enough examples. Moving a message to a visible custom label teaches that choice; moving it back to the inbox teaches a correction. Sender alone is never enough to move mail. Post compares weighted subject and unquoted body words, requires three strong examples and leaves uncertain messages in the inbox.
+
+Choose “Learn from labeled mail” to seed learning from downloaded messages whose labels are already correct. It imports up to 40 messages per eligible label and 40 unlabeled Primary messages. It does not download or move old mail. Multi-label messages are skipped when their destination is ambiguous.
+
+Automatic sorting applies to newly received inbox messages while Post is running. Messages already assigned a custom label, hidden destinations, Sent, Drafts, Spam and Trash are excluded. Clear matches receive the destination label and lose Inbox. Other labels and unread state remain unchanged. Recent automatic moves show an Undo button. Undo returns the message to Inbox, preserves later star/read changes and teaches that the move was incorrect.
+
+Learning stores up to 1,000 examples and 30 recent moves in the local mail cache. Examples contain message identifiers, sender addresses and weighted words; recent moves include subjects. No content is sent to an AI service. Gmail receives the usual label changes. Learning stays on this Mac and does not sync between installations. Reset learning removes these examples and move history without changing your messages or Gmail labels. This is conservative pattern matching, so unfamiliar wording may need manual moves before Post recognizes it.

@@ -17,6 +17,8 @@ final class MailStore: ObservableObject {
     var selectionAnchor: String?
     var rangeBase: Set<String>?
     @Published var conversation: [MailMessage] = []
+    @Published var labelLearning = LabelLearning()
+    @Published var showLearningReset = false
     @Published var search = "" { didSet { if search != oldValue { scheduleSearch() } } }
     @Published var searchScope = "all" { didSet { if searchScope != oldValue { scheduleSearch() } } }
     @Published var searching = false
@@ -247,7 +249,7 @@ final class MailStore: ObservableObject {
         let configured = ProcessInfo.processInfo.environment["POST_DATA_DIRECTORY"].map { URL(fileURLWithPath: $0, isDirectory: true) }
         self.directory = demoMode ? FileManager.default.temporaryDirectory.appendingPathComponent("Post-Demo", isDirectory: true) : directory ?? configured ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Post", isDirectory: true)
         if let data = try? Data(contentsOf: self.directory.appendingPathComponent("mail-cache.json")), let cache = try? JSONDecoder().decode(MailCache.self, from: data) {
-            messages = cache.messages; folders = cache.folders.isEmpty ? MailFolder.defaults : cache.folders; drafts = cache.drafts; pending = cache.pending; lastSync = cache.lastSync; preferences = cache.preferences; historyID = cache.historyID; account = cache.account ?? GmailClient.sampleAccount; folderSnapshots = cache.folderSnapshots ?? [:]; threadFetched = (cache.completedThreads ?? []).reduce(into: [:]) { $0[$1] = Date() }
+            messages = cache.messages; folders = cache.folders.isEmpty ? MailFolder.defaults : cache.folders; drafts = cache.drafts; pending = cache.pending; lastSync = cache.lastSync; preferences = cache.preferences; historyID = cache.historyID; account = cache.account ?? GmailClient.sampleAccount; folderSnapshots = cache.folderSnapshots ?? [:]; labelLearning = cache.labelLearning ?? LabelLearning(); threadFetched = (cache.completedThreads ?? []).reduce(into: [:]) { $0[$1] = Date() }
         } else { messages = Self.samples() }
         if demoMode {
             messages = Self.samples(); folders = MailFolder.defaults; drafts = []; pending = []; historyID = nil; account = GmailClient.sampleAccount
@@ -297,7 +299,7 @@ final class MailStore: ObservableObject {
     }
     func persist() {
         guard !loadingCache else { return }
-        let cache = MailCache(messages: messages, folders: folders, drafts: drafts, pending: pending, lastSync: lastSync, account: connected ? account : nil, historyID: historyID, preferences: preferences, folderSnapshots: folderSnapshots, completedThreads: Array(threadFetched.keys))
+        let cache = MailCache(messages: messages, folders: folders, drafts: drafts, pending: pending, lastSync: lastSync, account: connected ? account : nil, historyID: historyID, preferences: preferences, folderSnapshots: folderSnapshots, completedThreads: Array(threadFetched.keys), labelLearning: labelLearning)
         let directory = directory
         cacheWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
@@ -313,7 +315,7 @@ final class MailStore: ObservableObject {
         guard let cacheWork else { return }
         cacheWork.cancel()
         // Persist an immediate snapshot, then wait for earlier writes before quitting.
-        let cache = MailCache(messages: messages, folders: folders, drafts: drafts, pending: pending, lastSync: lastSync, account: connected ? account : nil, historyID: historyID, preferences: preferences, folderSnapshots: folderSnapshots, completedThreads: Array(threadFetched.keys))
+        let cache = MailCache(messages: messages, folders: folders, drafts: drafts, pending: pending, lastSync: lastSync, account: connected ? account : nil, historyID: historyID, preferences: preferences, folderSnapshots: folderSnapshots, completedThreads: Array(threadFetched.keys), labelLearning: labelLearning)
         let directory = directory
         cacheWriter.sync {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -525,8 +527,11 @@ final class MailStore: ObservableObject {
                 folders = countedFolders
                 if folderID == "DRAFT" { await loadDrafts() }
             }
+            if !more, let previousSync = lastSync {
+                sortNewMail(messages.filter { !oldIDs.contains($0.id) && $0.date > previousSync })
+            }
             if preferences.notifications && !more && lastSync != nil {
-                let new = arrivals + incoming.filter { message in !oldIDs.contains(message.id) && notificationMatches(message) && message.date > (lastSync ?? Date()) && !arrivals.contains(where: { $0.id == message.id }) }
+                let new = arrivals.compactMap { item in messages.first { $0.id == item.id && notificationMatches($0) } } + incoming.filter { message in !oldIDs.contains(message.id) && notificationMatches(messages.first { $0.id == message.id } ?? message) && message.date > (lastSync ?? Date()) && !arrivals.contains(where: { $0.id == message.id }) }
                 if let first = new.first { notify(first, count: new.count) }
             }
             lastSync = syncStartedAt; status = "Gmail is up to date"; persist()
@@ -575,6 +580,7 @@ final class MailStore: ObservableObject {
         let before = visibleMessages
         let index = before.firstIndex { ids.contains($0.id) } ?? 0
         let snapshots = messages.filter { ids.contains($0.id) }.map { ($0.id, $0.labels) }
+        for message in before where ids.contains(message.id) { learnLabelMove(message, add: add, remove: remove) }
         for message in before where ids.contains(message.id) { change(message.id, add: add, remove: remove, recordUndo: false) }
         lastUndo = snapshots
         if wasBulk {
@@ -603,6 +609,7 @@ final class MailStore: ObservableObject {
         guard let snapshots = lastUndo else { return }
         for (id, labels) in snapshots {
             guard let message = messages.first(where: { $0.id == id }) else { continue }
+            learnLabelMove(message, add: Array(labels.subtracting(message.labels)), remove: Array(message.labels.subtracting(labels)))
             change(id, add: Array(labels.subtracting(message.labels)), remove: Array(message.labels.subtracting(labels)), recordUndo: false)
         }
         lastUndo = nil
@@ -1040,10 +1047,63 @@ extension MailStore {
 extension MailStore {
     private func deliveryCheckpoint() throws {
         cacheWork?.cancel()
-        let snapshot = MailCache(messages: messages, folders: folders, drafts: drafts, pending: pending, lastSync: lastSync, account: connected ? account : nil, historyID: historyID, preferences: preferences, folderSnapshots: folderSnapshots, completedThreads: Array(threadFetched.keys))
+        let snapshot = MailCache(messages: messages, folders: folders, drafts: drafts, pending: pending, lastSync: lastSync, account: connected ? account : nil, historyID: historyID, preferences: preferences, folderSnapshots: folderSnapshots, completedThreads: Array(threadFetched.keys), labelLearning: labelLearning)
         try cacheWriter.sync {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try Self.writeCache(snapshot, to: directory)
         }
     }
+}
+
+
+extension MailStore {
+    var learningTargets: [MailFolder] { primaryLabelChoices.filter { !(preferences.hiddenSidebarLabels ?? []).contains($0.id) } }
+    var allowedAutomaticLabels: Set<String> {
+        Set(learningTargets.map(\.id)).intersection(preferences.automaticLabelTargets ?? Set(learningTargets.map(\.id)))
+    }
+    func learnLabelMove(_ message: MailMessage, add: [String], remove: [String]) {
+        guard preferences.learnLabels != false, message.labels.isDisjoint(with: ["SENT", "DRAFT", "SPAM", "TRASH"]) || add.contains("INBOX") else { return }
+        let targets = Set(learningTargets.map(\.id))
+        if let label = add.first(where: { targets.contains($0) }) {
+            labelLearning.recentMoves.removeAll { $0.messageID == message.id }
+            labelLearning.learn(message, target: label)
+        } else if add.contains("INBOX") || (remove.contains(where: { targets.contains($0) }) && message.labels.contains("INBOX")) {
+            labelLearning.recentMoves.removeAll { $0.messageID == message.id }
+            labelLearning.learn(message, target: LabelLearning.primary)
+        }
+        persist()
+    }
+    func sortNewMail(_ incoming: [MailMessage]) {
+        guard preferences.learnLabels != false, preferences.automaticLabeling != false else { return }
+        let eligible = allowedAutomaticLabels
+        for candidate in incoming {
+            guard let message = messages.first(where: { $0.id == candidate.id }), message.labels.contains("INBOX"),
+                  message.labels.isDisjoint(with: ["SENT", "DRAFT", "SPAM", "TRASH"]),
+                  message.labels.isDisjoint(with: Set(primaryLabelChoices.map(\.id))),
+                  let target = labelLearning.prediction(message, allowed: eligible) else { continue }
+            labelLearning.recentMoves.insert(.init(messageID: message.id, target: target, subject: message.subject, previousLabels: message.labels), at: 0)
+            labelLearning.recentMoves = Array(labelLearning.recentMoves.prefix(30))
+            // Automatic decisions never become training examples.
+            change(message.id, add: [target], remove: ["INBOX"], recordUndo: false)
+        }
+        persist()
+    }
+    func undoAutomaticMove(_ move: AutomaticLabelMove) {
+        guard let message = messages.first(where: { $0.id == move.messageID }), message.labels.contains(move.target), message.labels.isDisjoint(with: ["TRASH", "SPAM"]) else { return }
+        labelLearning.learn(message, target: LabelLearning.primary)
+        // Only reverse this move's label and Inbox change; preserve later star/read/other-label changes.
+        change(message.id, add: move.previousLabels.contains("INBOX") ? ["INBOX"] : [], remove: [move.target], recordUndo: false)
+        labelLearning.recentMoves.removeAll { $0.id == move.id }; persist()
+    }
+    func learnExistingLabels() {
+        let targets = allowedAutomaticLabels
+        for label in learningTargets where targets.contains(label.id) {
+            for message in messages.filter({ $0.labels.contains(label.id) && $0.labels.isDisjoint(with: ["TRASH", "SPAM", "SENT", "DRAFT"]) }).prefix(40) {
+                if message.labels.intersection(targets).count == 1 { labelLearning.learn(message, target: label.id) }
+            }
+        }
+        for message in messages.filter({ contains(MailFolder.defaults[0], $0) && $0.labels.isDisjoint(with: Set(primaryLabelChoices.map(\.id))) }).prefix(40) { labelLearning.learn(message, target: LabelLearning.primary) }
+        persist()
+    }
+    func resetLabelLearning() { labelLearning = LabelLearning(); persist() }
 }

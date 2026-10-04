@@ -19,7 +19,7 @@ struct SettingsPane: View {
     @LocalState private var section = "Appearance"
     @LocalState private var cacheSize = ""
     @LocalState private var clearMediaPrompt = false
-    private let sections = [("Appearance", "paintbrush"), ("Inbox", "tray"), ("Sidebar", "sidebar.left"), ("Reading", "doc.text"), ("Composing", "square.and.pencil"), ("Sending", "paperplane"), ("Notifications", "bell"), ("Shortcuts", "keyboard"), ("Storage & downloads", "externaldrive"), ("Account", "person.crop.square")]
+    private let sections = [("Appearance", "paintbrush"), ("Inbox", "tray"), ("Sorting", "sparkles"), ("Sidebar", "sidebar.left"), ("Reading", "doc.text"), ("Composing", "square.and.pencil"), ("Sending", "paperplane"), ("Notifications", "bell"), ("Shortcuts", "keyboard"), ("Storage & downloads", "externaldrive"), ("Account", "person.crop.square")]
     private func option<T>(_ key: WritableKeyPath<MailPreferences, T?>, _ fallback: T) -> Binding<T> { Binding(get: { store.preferences[keyPath: key] ?? fallback }, set: { store.preferences[keyPath: key] = $0 }) }
     var body: some View {
         HStack(spacing: 0) {
@@ -41,6 +41,7 @@ struct SettingsPane: View {
         }.buttonStyle(PostButtonStyle()).tint(Color(nsColor: .labelColor)).foregroundStyle(.primary).font(PostStyle.font(size: 13)).frame(width: 810, height: 730).background(PostStyle.background).preferredColorScheme(PostStyle.scheme(store.preferences.appearance))
         .onAppear { if updates.openAccount { section = "Account"; updates.openAccount = false }; store.refreshNotificationStatus(); updateCacheSize() }
         .onDisappear { store.recordingShortcut = nil }
+        .postPrompt("Reset label learning?", isPresented: $store.showLearningReset, message: "This removes learned examples and the automatic-move history from this Mac. Your messages and Gmail labels stay unchanged.", actions: ["Reset", "Cancel"]) { response in if response == 0 { store.resetLabelLearning() } }
         .postPrompt("Clear downloaded media?", isPresented: $clearMediaPrompt, message: "Messages, drafts, attachments saved to Downloads, and settings stay on this Mac. Cached images and attachment downloads will load again when needed.", actions: ["Clear", "Cancel"]) { response in
             if response == 0 { store.clearDownloadedMedia(); PostImageLoader.shared.clear(); HTMLDocument.clearRenderedCache(); updateCacheSize() }
         }
@@ -64,6 +65,37 @@ struct SettingsPane: View {
             Text("Labels included in Primary").font(PostStyle.font(size: 13, weight: .semibold))
             Text("Unlabeled inbox mail is included. New labels are excluded until enabled.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
             ForEach(store.primaryLabelChoices) { label in Toggle(label.name, isOn: Binding(get: { store.primaryIncludedLabels.contains(label.id) }, set: { store.setPrimaryLabel(label.id, included: $0) })) }
+        case "Sorting":
+            Toggle("Learn from my label moves", isOn: option(\.learnLabels, true))
+            Toggle("Automatically move clear matches", isOn: option(\.automaticLabeling, true)).disabled(store.preferences.learnLabels == false)
+            Text("Learning stays on this Mac. Post compares sender, subject and unquoted message text with your manual choices. It needs at least three strong examples for a label; uncertain mail stays in the inbox. Sorting applies to new mail while Post is running.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
+            Text("\(store.labelLearning.examples.count) learned examples").font(PostStyle.font(size: 13, weight: .medium))
+            HStack {
+                Button("Learn from labeled mail") { store.learnExistingLabels() }.disabled(store.preferences.learnLabels == false)
+                Button("Reset learning…") { store.showLearningReset = true }.disabled(store.labelLearning.examples.isEmpty)
+            }
+            Text("Learn from labeled mail uses downloaded messages in their current labels. Use it when those labels are already organized correctly.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
+            Text("Automatic sorting destinations").font(PostStyle.font(size: 13, weight: .semibold))
+            ForEach(store.learningTargets) { label in
+                Toggle(label.name, isOn: Binding(get: { store.allowedAutomaticLabels.contains(label.id) }, set: { enabled in
+                    var values = store.allowedAutomaticLabels
+                    if enabled { values.insert(label.id) } else { values.remove(label.id) }
+                    store.preferences.automaticLabelTargets = values
+                }))
+            }
+            if !store.labelLearning.recentMoves.isEmpty {
+                Text("Recent automatic moves").font(PostStyle.font(size: 13, weight: .semibold))
+                ForEach(store.labelLearning.recentMoves) { move in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(move.subject).lineLimit(2)
+                            Text(store.folders.first { $0.id == move.target }?.name ?? "Removed label").font(PostStyle.font(size: 11)).foregroundStyle(PostStyle.secondary)
+                        }
+                        Spacer()
+                        Button("Undo") { store.undoAutomaticMove(move) }.disabled(!store.messages.contains { $0.id == move.messageID && $0.labels.contains(move.target) && $0.labels.isDisjoint(with: ["TRASH", "SPAM"]) })
+                    }.padding(10).background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
         case "Sidebar":
             Toggle("Show numbered badges", isOn: option(\.sidebarBadges, true))
             Picker("Sidebar counts", selection: $store.preferences.totalCounts) { Text("Unread").tag(false); Text("Total").tag(true) }.pickerStyle(.segmented)

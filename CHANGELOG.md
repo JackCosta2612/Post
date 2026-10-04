@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.5 · 4 October 2026
+
+- Learn label choices locally from manual message moves and corrections, using subject, sender and unquoted content.
+- Automatically label and archive new inbox messages only after at least three strong examples agree. Uncertain messages stay in the inbox.
+- Add Sorting settings to pause learning or automatic moves, choose destinations, import already organized cached mail, reset learning and undo recent automatic moves.
+- Keep learned examples on the Mac, with no AI service, API key or subscription.
+
 ## 0.2.4
 
 - Added all-mail and current-folder search, including Trash and Spam, with separate pagination and stale-result protection.

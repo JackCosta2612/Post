@@ -124,6 +124,71 @@ struct BehaviorTests {
         check(remoteSearching.visibleMessages.map(\.id) == ["remote-inbox"], "Switching scope removes previous remote search results")
         remoteSearching.search = ""
         check(remoteSearching.visibleMessages.isEmpty, "Clearing remote search restores authoritative empty folder")
+        let learningStore = MailStore(directory: directory.appendingPathComponent("Learning"))
+        var confirmation = MailStore.samples()[0]
+        confirmation.from = "Recruiting <jobs@example.com>"; confirmation.subject = "Application received for business analyst"
+        confirmation.body = "Thank you for applying. Your application has been received and our recruiting team will review your profile. We will contact you about the next steps."; confirmation.labels = ["INBOX", "UNREAD"]
+        var rejection = confirmation; rejection.subject = "Application outcome for business analyst"
+        rejection.body = "Unfortunately we cannot proceed with your application. Other candidates more closely match this vacancy. We wish you success with your job search."
+        var interview = confirmation; interview.subject = "Interview invitation for business analyst"
+        interview.body = "We are pleased to invite you to an interview. Please choose a time for a meeting with the hiring manager and confirm your availability."
+        var learner = LabelLearning()
+        for index in 0..<3 {
+            confirmation.id = "confirmation-\(index)"; learner.learn(confirmation, target: "confirmations")
+            rejection.id = "rejection-\(index)"; learner.learn(rejection, target: "rejections")
+            interview.id = "interview-\(index)"; learner.learn(interview, target: LabelLearning.primary)
+        }
+        confirmation.id = "new-confirmation"; rejection.id = "new-rejection"; interview.id = "new-interview"
+        check(learner.prediction(confirmation, allowed: ["confirmations", "rejections"]) == "confirmations", "Matching confirmation content learns its own label")
+        check(learner.prediction(rejection, allowed: ["confirmations", "rejections"]) == "rejections", "Same sender can map rejection content to a different label")
+        check(learner.prediction(interview, allowed: ["confirmations", "rejections"]) == nil, "Learned Primary examples keep interview invitations in Inbox")
+        var uncertain = confirmation; uncertain.subject = "New meeting details"; uncertain.body = "Please join us for a conversation tomorrow. What time works for you?"
+        check(learner.prediction(uncertain, allowed: ["confirmations", "rejections"]) == nil, "Sender alone does not sort unfamiliar content")
+        check(learner.prediction(confirmation, allowed: ["rejections"]) == nil, "Excluded label cannot be an automatic destination")
+        var sparse = LabelLearning(); sparse.learn(confirmation, target: "confirmations"); sparse.learn(confirmation, target: "confirmations")
+        check(sparse.examples.count == 1 && sparse.prediction(confirmation, allowed: ["confirmations"]) == nil, "Repeated moves of one message do not manufacture training evidence")
+        var ambiguous = learner
+        for index in 0..<3 { var similar = confirmation; similar.id = "ambiguous-\(index)"; ambiguous.learn(similar, target: "rejections") }
+        check(ambiguous.prediction(confirmation, allowed: ["confirmations", "rejections"]) == nil, "Conflicting label examples require manual handling")
+        learningStore.labelLearning = learner; learningStore.messages = [confirmation, rejection, interview]
+        learningStore.sortNewMail(learningStore.messages)
+        check(learningStore.messages.first { $0.id == confirmation.id }!.labels == ["confirmations", "UNREAD"], "Automatic move archives a match and preserves unread state")
+        check(learningStore.messages.first { $0.id == interview.id }!.labels.contains("INBOX"), "Uncertain or Primary predictions remain in Inbox")
+        check(learningStore.labelLearning.examples.count == learner.examples.count, "Automatic decisions do not train themselves")
+        let automated = learningStore.labelLearning.recentMoves.first { $0.messageID == confirmation.id }!
+        if let i = learningStore.messages.firstIndex(where: { $0.id == confirmation.id }) { learningStore.messages[i].labels.insert("STARRED") }
+        learningStore.undoAutomaticMove(automated)
+        check(learningStore.messages.first { $0.id == confirmation.id }!.labels == ["INBOX", "UNREAD", "STARRED"], "Undo automatic move preserves later read and star changes")
+        check(learningStore.labelLearning.examples.first { $0.id == confirmation.id }?.target == LabelLearning.primary, "Undo teaches that the automatic decision was incorrect")
+        learningStore.persist(); learningStore.flushCache()
+        let resumedLearning = MailStore(directory: learningStore.directory)
+        check(resumedLearning.labelLearning.examples.count == learningStore.labelLearning.examples.count && resumedLearning.labelLearning.recentMoves.count == 1, "Learning and recent automatic moves survive restart")
+        resumedLearning.resetLabelLearning()
+        check(resumedLearning.labelLearning.examples.isEmpty && resumedLearning.messages.count == 3, "Reset learning leaves messages unchanged")
+        learningStore.preferences.automaticLabeling = false; learningStore.messages = [confirmation]; learningStore.labelLearning = learner
+        learningStore.sortNewMail([confirmation])
+        check(learningStore.messages[0].labels.contains("INBOX"), "Disabling automatic moves keeps new matches in Inbox")
+        learningStore.preferences.automaticLabeling = true
+        learningStore.preferences.learnLabels = false
+        learningStore.sortNewMail([confirmation])
+        check(learningStore.messages[0].labels.contains("INBOX"), "Pausing learning also pauses automatic sorting")
+        learningStore.preferences.learnLabels = true
+        learningStore.labelLearning = LabelLearning()
+        learningStore.select(confirmation.id)
+        learningStore.actOnSelected(add: ["confirmations"], remove: ["INBOX"])
+        check(learningStore.labelLearning.examples.first?.target == "confirmations", "Manual label action teaches its destination")
+        learningStore.undo()
+        check(learningStore.labelLearning.examples.count == 1 && learningStore.labelLearning.examples.first?.target == LabelLearning.primary, "Manual undo replaces the earlier example with a correction")
+        var organized = confirmation; organized.id = "organized"; organized.labels = ["confirmations", "INBOX"]
+        var multiLabel = confirmation; multiLabel.id = "multi-label"; multiLabel.labels = ["confirmations", "rejections"]
+        learningStore.messages = [organized, multiLabel]; learningStore.preferences.primaryIncludedLabels = ["confirmations"]
+        learningStore.resetLabelLearning(); learningStore.learnExistingLabels()
+        check(learningStore.labelLearning.examples.first { $0.id == organized.id }?.target == "confirmations", "Import preserves a labeled example even when its label belongs in Primary")
+        check(!learningStore.labelLearning.examples.contains { $0.id == multiLabel.id }, "Import skips ambiguous messages with multiple destinations")
+        learningStore.labelLearning = learner
+        var protected = confirmation; protected.labels = ["INBOX", "rejections"]
+        learningStore.messages = [protected]; learningStore.sortNewMail([protected])
+        check(learningStore.messages[0].labels == protected.labels, "Automatic sorting preserves messages already assigned a custom label")
         let store = MailStore(directory: directory)
         let searchIDs = store.visibleMessages.map(\.id)
         store.search = "Northpeak"
