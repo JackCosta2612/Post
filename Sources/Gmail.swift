@@ -96,6 +96,7 @@ actor GmailClient {
     private var cooldownUntil = Date.distantPast
     private var cooldownSeconds: Double = 60
     private var countCache: [String: (Date, Int)] = [:]
+    private var threadRequests: [String: Task<[MailMessage], Error>] = [:]
     private var attachmentRequests: [String: Task<Data, Error>] = [:]
     private var folderCache: (Date, [MailFolder])?
     static func quotaCost(_ path: String, method: String) -> Int {
@@ -278,6 +279,7 @@ actor GmailClient {
             let json = try await request("history", query: params); newest = json["historyId"] as? String
             for h in json["history"] as? [[String: Any]] ?? [] {
                 for value in h["messages"] as? [[String: Any]] ?? [] { if let id = value["id"] as? String, cachedIDs.contains(id) { changed.insert(id) } }
+                for value in h["messagesAdded"] as? [[String: Any]] ?? [] { if let m = value["message"] as? [String: Any], let id = m["id"] as? String { changed.insert(id) } }
                 for value in h["messagesDeleted"] as? [[String: Any]] ?? [] { if let m = value["message"] as? [String: Any], let id = m["id"] as? String { deleted.insert(id) } }
             }
             page = json["nextPageToken"] as? String
@@ -287,9 +289,20 @@ actor GmailClient {
         return (result, deleted, newest)
     }
     func message(_ id: String) async throws -> MailMessage { try Self.parseMessage(await request("messages/\(id)", query: ["format": "full"])) }
-    func thread(_ id: String, cached: [MailMessage] = []) async throws -> [MailMessage] {
-        let json = try await request("threads/\(id)", query: ["format": "full"])
-        var values = try (json["messages"] as? [[String: Any]] ?? []).map(Self.parseMessage)
+    func thread(_ id: String, cached: [MailMessage] = [], loadImages: Bool = true) async throws -> [MailMessage] {
+        let values: [MailMessage]
+        if let existing = threadRequests[id] { values = try await existing.value }
+        else {
+            let task = Task { let json = try await self.request("threads/\(id)", query: ["format": "full"]); return try (json["messages"] as? [[String: Any]] ?? []).map(Self.parseMessage) }
+            threadRequests[id] = task
+            do { values = try await task.value; threadRequests[id] = nil }
+            catch { threadRequests[id] = nil; throw error }
+        }
+        if !loadImages { return values.sorted { $0.date < $1.date } }
+        return try await hydrateInlineImages(values, cached: cached)
+    }
+    func hydrateInlineImages(_ input: [MailMessage], cached: [MailMessage] = []) async throws -> [MailMessage] {
+        var values = input
         let cachedMap = Dictionary(cached.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
         values = try await withThrowingTaskGroup(of: MailMessage.self) { group in
             for value in values { group.addTask {

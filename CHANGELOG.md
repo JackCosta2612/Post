@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4
+
+- Added all-mail and current-folder search, including Trash and Spam, with separate pagination and stale-result protection.
+- Persisted completed conversations, separated body loading from inline media, and coalesced simultaneous thread requests.
+- Cached message-list filtering and indexing to reduce repeated work during interface updates.
+- Balanced mode preloads two nearby threads; faster mode preloads six.
+- Refined transitions, button feedback, Settings spacing and text contrast.
+
 ## 0.2.3 · 2 October 2026
 
 - Add signed Sparkle updates hosted on GitHub, with automatic check and installation preferences.

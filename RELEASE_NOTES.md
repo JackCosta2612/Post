@@ -1,7 +1,9 @@
-Post 0.2.3
+Post 0.2.4
 
-- Signed in-app updates through GitHub. Check for updates in Post or enable automatic checks and installation in Settings → Account.
-- Release notes appear once after launching a newer version.
-- Includes the sidebar transitions, original-color email padding, badge fixes, sound selection and cursor improvements from 0.2.2.
+- Search all mail, including archived messages, Spam and Trash, or limit results to the current folder. Downloaded matches appear immediately while Gmail finds more results.
+- Conversations display their text before inline images finish loading. Opened threads stay cached across launches and refresh when Gmail reports changes.
+- Balanced mode preloads two nearby conversations. Faster mode preloads six. Concurrent requests for the same conversation share one download.
+- Softer sidebar transitions and button feedback, with reduced motion support.
+- Settings have more space, consistent cards and clearer secondary text in light and dark mode.
 
-Install this version manually once to enable future in-app updates. Download the universal app zip for Apple silicon and Intel Macs, extract it and move Post to Applications. The app is locally signed and is not Apple-notarized. Each user supplies their own Google Desktop OAuth client.
+Use Post → Check for updates to install this release.

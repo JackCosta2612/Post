@@ -59,7 +59,7 @@ struct MailWindow: View {
         .ignoresSafeArea(.container, edges: .top)
         .background(WindowChrome())
         .buttonStyle(PostButtonStyle())
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: store.preferences.collapsed)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.24, extraBounce: 0), value: store.preferences.collapsed)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: store.selectedID != nil && !store.bulkMode)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: store.selectedDraftID)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: store.bulkIDs)
@@ -116,7 +116,7 @@ struct MailWindow: View {
                     ZStack {
                         emptyReading.opacity(store.bulkMode ? 0 : 1).accessibilityHidden(store.bulkMode)
                         GeometryReader { geometry in
-                            if store.folderID == "DRAFT", !store.bulkMode, let draft = store.drafts.first(where: { $0.id == store.selectedDraftID }) {
+                            if store.viewingDrafts, !store.bulkMode, let draft = store.drafts.first(where: { $0.id == store.selectedDraftID }) {
                                 ComposePane(initial: draft, embedded: true).id(draft.id)
                                     .frame(width: geometry.size.width, height: geometry.size.height)
                                     .background(PostStyle.surface, in: RoundedRectangle(cornerRadius: 18))
@@ -222,7 +222,7 @@ struct MailWindow: View {
     private var emptyReading: some View {
         VStack(spacing: 14) {
             Image(systemName: "envelope").font(PostStyle.font(size: 34, weight: .light))
-            Text(store.folderID == "DRAFT" ? "Select a draft to continue writing" : "Select a message to read").font(PostStyle.font(size: 18, weight: .medium))
+            Text(store.viewingDrafts ? "Select a draft to continue writing" : "Select a message to read").font(PostStyle.font(size: 18, weight: .medium))
             Text("Use \(store.preferences.shortcuts["previous"]?.display ?? "↑") and \(store.preferences.shortcuts["next"]?.display ?? "↓") to navigate").font(PostStyle.font(size: 12))
         }.foregroundStyle(PostStyle.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -240,7 +240,7 @@ struct MailWindow: View {
                         }.buttonStyle(PostButtonStyle(selected: store.unreadOnly)).help("Show unread messages in this section").accessibilityValue(store.unreadOnly ? "On" : "Off")
                     }
                 }
-                Text("\(store.sectionCount) \(store.unreadOnly ? "unread messages" : "messages")").font(PostStyle.font(size: 11)).foregroundStyle(PostStyle.secondary)
+                Text(store.isSearching ? "\(store.visibleMessages.count) matches\(store.searching ? " · Searching…" : "")" : "\(store.sectionCount) \(store.unreadOnly ? "unread messages" : "messages")").font(PostStyle.font(size: 11)).foregroundStyle(PostStyle.secondary)
             }
             Spacer(minLength: 8)
             Button { Task { await store.refresh(manual: true) } } label: {
@@ -250,6 +250,15 @@ struct MailWindow: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(PostStyle.secondary)
                 TextField("Search mail", text: $store.search).textFieldStyle(.plain).focused($searchFocused)
+                if store.isSearching {
+                    Menu {
+                        Picker("Search in", selection: $store.searchScope) {
+                            Text("All mail, including Trash").tag("all")
+                            Text(store.folder.name).tag("folder")
+                        }
+                    } label: { Image(systemName: store.searchScope == "all" ? "tray.full" : "tray") }
+                    .menuStyle(.borderlessButton).fixedSize().help("Search scope")
+                }
                 if !store.search.isEmpty { Button { store.search = "" } label: { Image(systemName: "xmark") } }
             }.padding(10).background(PostStyle.surface.opacity(0.65), in: RoundedRectangle(cornerRadius: 10)).frame(width: 220)
             Button { store.newCompose() } label: {
@@ -262,7 +271,7 @@ struct MailWindow: View {
     }
     private var messageList: some View {
         VStack(spacing: 0) {
-            if store.folderID == "DRAFT" {
+            if store.viewingDrafts {
                 if store.drafts.isEmpty {
                     Text("No drafts here").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -291,7 +300,7 @@ struct MailWindow: View {
                 VStack(spacing: 12) { Image(systemName: store.search.isEmpty ? "tray" : "magnifyingglass").font(PostStyle.font(size: 28)).foregroundStyle(.tertiary); Text(store.search.isEmpty ? "No messages here" : "No matching messages").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in
-                    ScrollView { LazyVStack(spacing: 0) { ForEach(store.visibleMessages) { message in MessageRow(message: message).id(message.id) }; if store.nextPage != nil { Button("Load more messages") { Task { await store.refresh(more: true) } }.padding(20).disabled(store.busy) } } }
+                    ScrollView { LazyVStack(spacing: 0) { ForEach(store.visibleMessages) { message in MessageRow(message: message).id(message.id) }; if store.canLoadMore { Button(store.isSearching ? "More search results" : "Load more messages") { Task { await store.loadMoreVisible() } }.padding(20).disabled(store.busy || store.searching) } } }
                     .onChange(of: store.selectedID) { _, id in if let id { withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(id) } } }
                 }
             }
@@ -978,11 +987,11 @@ private struct PostButtonBody: View {
         configuration.label.padding(inset)
             .background(PostStyle.accent.opacity(enabled && hovering && !selected ? 0.075 : 0), in: RoundedRectangle(cornerRadius: 10))
             .opacity(!enabled ? 0.45 : configuration.isPressed ? 0.7 : 1)
-            .scaleEffect(configuration.isPressed && !reduceMotion && !selected ? 0.985 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion && !selected ? 0.995 : 1)
             .contentShape(RoundedRectangle(cornerRadius: 10))
             .onHover { hovering = $0 }
             .pointerHover()
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: hovering)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovering)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }
@@ -1048,8 +1057,8 @@ struct BulkSelectionPane: View {
     var body: some View {
         VStack(spacing: 18) {
             Image(systemName: "rectangle.stack").font(PostStyle.font(size: 32, weight: .light)).foregroundStyle(PostStyle.accent)
-            Text("\(store.bulkIDs.count) \(store.folderID == "DRAFT" ? "drafts" : "messages") selected").font(PostStyle.font(size: 20, weight: .medium))
-            if store.folderID == "DRAFT" {
+            Text("\(store.bulkIDs.count) \(store.viewingDrafts ? "drafts" : "messages") selected").font(PostStyle.font(size: 20, weight: .medium))
+            if store.viewingDrafts {
                 Button { store.perform("trash") } label: { Label("Delete drafts", systemImage: "trash") }.buttonStyle(PostButtonStyle())
             } else {
             HStack(spacing: 14) {
@@ -1186,14 +1195,14 @@ private struct SectionNavigationTransition: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @LocalState private var settled = true
     func body(content: Content) -> some View {
-        content.opacity(settled ? 1 : 0.82).offset(y: settled ? 0 : 4)
+        content.opacity(settled ? 1 : 0.94).offset(y: settled ? 0 : 2)
             .task(id: section) {
                 guard !reduceMotion else { settled = true; return }
                 var transaction = Transaction(); transaction.disablesAnimations = true
                 withTransaction(transaction) { settled = false }
                 try? await Task.sleep(for: .milliseconds(16))
                 guard !Task.isCancelled else { return }
-                withAnimation(.easeOut(duration: 0.18)) { settled = true }
+                withAnimation(.smooth(duration: 0.2, extraBounce: 0)) { settled = true }
             }
     }
 }

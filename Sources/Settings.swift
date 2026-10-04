@@ -29,12 +29,14 @@ struct SettingsPane: View {
                     Button { section = name } label: { Label(name, systemImage: icon).font(PostStyle.font(size: 12)).frame(maxWidth: .infinity, alignment: .leading).padding(10).background(section == name ? PostStyle.selection : .clear, in: RoundedRectangle(cornerRadius: 6)) }.buttonStyle(PostButtonStyle(selected: section == name))
                 }
                 Spacer(); Button("Done") { store.showSettings = false }.keyboardShortcut(.defaultAction)
-            }.padding(18).frame(width: 205).background(PostStyle.sidebar)
+            }.padding(20).frame(width: 205).background(PostStyle.sidebar)
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 22) {
                     Text(section).font(PostStyle.font(size: 25, weight: .semibold))
-                    content
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(28)
+                    VStack(alignment: .leading, spacing: 18) { content }
+                        .padding(22).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(PostStyle.surface, in: RoundedRectangle(cornerRadius: 12))
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(26)
             }
         }.buttonStyle(PostButtonStyle()).tint(Color(nsColor: .labelColor)).foregroundStyle(.primary).font(PostStyle.font(size: 13)).frame(width: 810, height: 730).background(PostStyle.background).preferredColorScheme(PostStyle.scheme(store.preferences.appearance))
         .onAppear { if updates.openAccount { section = "Account"; updates.openAccount = false }; store.refreshNotificationStatus(); updateCacheSize() }
@@ -60,13 +62,13 @@ struct SettingsPane: View {
         case "Inbox":
             Picker("Primary view", selection: Binding(get: { store.preferences.primaryMode ?? "wide" }, set: { store.preferences.primaryMode = $0; store.primarySettingsChanged() })) { Text("Gmail Primary category").tag("gmail"); Text("All inbox categories").tag("wide") }
             Text("Labels included in Primary").font(PostStyle.font(size: 13, weight: .semibold))
-            Text("Unlabeled inbox mail is included. New labels are excluded until enabled.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+            Text("Unlabeled inbox mail is included. New labels are excluded until enabled.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
             ForEach(store.primaryLabelChoices) { label in Toggle(label.name, isOn: Binding(get: { store.primaryIncludedLabels.contains(label.id) }, set: { store.setPrimaryLabel(label.id, included: $0) })) }
         case "Sidebar":
             Toggle("Show numbered badges", isOn: option(\.sidebarBadges, true))
             Picker("Sidebar counts", selection: $store.preferences.totalCounts) { Text("Unread").tag(false); Text("Total").tag(true) }.pickerStyle(.segmented)
             Text("Label order and visibility").font(PostStyle.font(size: 13, weight: .semibold))
-            Text("Drag a handle to reorder. Primary stays first. Hidden labels stay in Gmail.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+            Text("Drag a handle to reorder. Primary stays first. Hidden labels stay in Gmail.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
             ForEach(store.orderedSidebarLabels.filter { $0.id != "primary" }) { label in
                 HStack {
                     Toggle(label.name, isOn: Binding(get: { !(store.preferences.hiddenSidebarLabels ?? []).contains(label.id) }, set: { store.setSidebarLabel(label.id, visible: $0) }))
@@ -76,7 +78,7 @@ struct SettingsPane: View {
             }
         case "Reading":
             Toggle("Use app colors for email content", isOn: option(\.customEmailColors, false))
-            Text("Off preserves each email’s original colors and layout.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+            Text("Off preserves each email’s original colors and layout.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
             Toggle("Group messages into conversations", isOn: option(\.groupConversations, true))
             Toggle("Mark opened messages as read", isOn: $store.preferences.markRead)
             Picker("Mark as read after", selection: option(\.readDelay, 0)) { Text("Immediately").tag(0); ForEach([1, 3, 5, 10, 30], id: \.self) { Text("\($0) seconds").tag($0) } }.disabled(!store.preferences.markRead)
@@ -89,12 +91,12 @@ struct SettingsPane: View {
             Picker("Text color", selection: option(\.composerColor, "default")) { Text("Default").tag("default"); Text("Blue").tag("blue"); Text("Gray").tag("gray"); Text("Red").tag("red"); if let value = store.preferences.composerColor, NSColor(postHex: value) != nil { Text("Custom").tag(value) } }
             ColorPicker("Custom text color", selection: Binding(get: { Color(nsColor: NSColor(postHex: store.preferences.composerColor ?? "000000") ?? .textColor) }, set: { store.preferences.composerColor = NSColor($0).postHex }), supportsOpacity: false)
             Picker("Line spacing", selection: option(\.composerSpacing, 3)) { Text("Tight").tag(0.0); Text("Standard").tag(3.0); Text("Relaxed").tag(6.0) }
-            Text("Formatting controls are also available in each composer.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+            Text("Formatting controls are also available in each composer.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
             Text("Signature").font(PostStyle.font(size: 13, weight: .semibold))
             TextEditor(text: $store.preferences.signature).font(PostStyle.font(size: 12)).frame(height: 120).padding(8).background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 8))
         case "Sending":
             Picker("Undo Send delay", selection: option(\.undoSendDelay, 5)) { Text("Off").tag(0); ForEach([5,10,20,30], id: \.self) { Text("\($0) seconds").tag($0) } }
-            Text("Send waits for this delay. Undo Send returns the message to the composer.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+            Text("Send waits for this delay. Undo Send returns the message to the composer.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
             Text("Scheduled sending").font(PostStyle.font(size: 13, weight: .semibold))
             Text("Choose Send later in the composer. Queued mail stays on this Mac and appears in Drafts. Opening a queued draft cancels its schedule. Post must be running; overdue mail sends after reopening.").font(PostStyle.font(size: 12)).foregroundStyle(.secondary)
         case "Notifications":
@@ -104,7 +106,7 @@ struct SettingsPane: View {
                 ForEach(store.primaryLabelChoices) { label in Toggle(label.name, isOn: Binding(get: { (store.preferences.notificationLabels ?? []).contains(label.id) }, set: { enabled in var ids = store.preferences.notificationLabels ?? []; if enabled { ids.insert(label.id) } else { ids.remove(label.id) }; store.preferences.notificationLabels = ids })) }
             }
             TextField("Sender allowlist, separated by commas", text: option(\.notificationSenders, ""))
-            Text("Leave the allowlist empty for all senders. Spam and Trash never notify.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+            Text("Leave the allowlist empty for all senders. Spam and Trash never notify.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
             Toggle("Quiet hours", isOn: option(\.quietHours, false))
             if store.preferences.quietHours == true {
                 HStack { Picker("From", selection: option(\.quietStart, 22)) { ForEach(0..<24) { Text(String(format: "%02d:00", $0)).tag($0) } }; Picker("Until", selection: option(\.quietEnd, 8)) { ForEach(0..<24) { Text(String(format: "%02d:00", $0)).tag($0) } } }
@@ -122,24 +124,24 @@ struct SettingsPane: View {
             Toggle("Show subject", isOn: option(\.showNotificationSubject, true))
             Toggle("Show message excerpt", isOn: option(\.showNotificationBody, false))
             Toggle("Show banners while Post is active", isOn: option(\.notificationForeground, false))
-            Text(store.notificationStatus).font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
-            Text(store.notificationTestStatus).font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+            Text(store.notificationStatus).font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
+            Text(store.notificationTestStatus).font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
             HStack { Button("Test notification") { store.testNotification() }; Button("macOS notification settings") { store.openNotificationSettings() } }
-            Text("Post checks every minute while running. Quiet-hour messages do not generate delayed banners.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+            Text("Post checks every minute while running. Quiet-hour messages do not generate delayed banners.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
         case "Shortcuts":
             Toggle("Show shortcut hints below the message panes", isOn: option(\.showShortcutHints, true))
-            Text("Record a shortcut. Menus and hints update immediately.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+            Text("Record a shortcut. Menus and hints update immediately.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
             ForEach(Shortcut.names, id: \.0) { action, name in shortcutRow(name, key: action, shortcut: store.preferences.shortcuts[action]) }
             Text("Label navigation").font(PostStyle.font(size: 13, weight: .semibold))
-            Text("Command shortcuts work with no selected message, composer, or text field. Hold Command to see each label’s key.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+            Text("Command shortcuts work with no selected message, composer, or text field. Hold Command to see each label’s key.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
             ForEach(store.sidebarLabels) { label in shortcutRow(label.name, key: "label:" + label.id, shortcut: store.shortcutLabels().first { $0.0.id == label.id }?.1) }
             Button("Restore shortcut defaults") { store.preferences.shortcuts = Shortcut.defaults; store.preferences.labelShortcuts = nil; store.recordingShortcut = nil }
         case "Storage & downloads":
             Picker("Cache mode", selection: option(\.cacheMode, "balanced")) { Text("Balanced (default)").tag("balanced"); Text("Faster, more storage").tag("fast") }
-            Text("Balanced keeps up to 40 rendered emails and a 128 MB image cache. Faster keeps up to 120 rendered emails, a 1 GB image cache, preloads nearby conversations, and caches up to 20 MB of attachments per opened thread.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+            Text("Balanced keeps up to 40 rendered emails and a 128 MB image cache, and preloads the first two conversations. Faster keeps up to 120 rendered emails, a 1 GB image cache, preloads more nearby conversations, and caches up to 20 MB of attachments per opened thread.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
             Text("Local mail and media: " + cacheSize).font(PostStyle.font(size: 12))
             HStack { Button("Refresh size") { updateCacheSize() }; Button("Clear downloaded media…") { clearMediaPrompt = true } }
-            Text("Messages and drafts remain available offline in both modes. Faster mode uses more memory and Gmail requests.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+            Text("Messages and drafts remain available offline in both modes. Faster mode uses more memory and Gmail requests.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
             Divider()
             Text("Attachment download location").font(PostStyle.font(size: 13, weight: .semibold))
             Text(store.downloadDirectory.path).font(PostStyle.font(size: 11)).textSelection(.enabled)
@@ -163,7 +165,7 @@ struct SettingsPane: View {
                 Button("Sign in with Google") { store.signIn() }.buttonStyle(.borderedProminent).disabled(!store.hasClient || store.busy)
                 Button("Open setup guide") { if let url = Bundle.main.url(forResource: "Setup", withExtension: "md") { NSWorkspace.shared.open(url) } }
             }
-            Text("Sign-in stays in macOS Keychain. Cached mail and drafts stay on this Mac.").font(PostStyle.font(size: 11)).foregroundStyle(.secondary)
+            Text("Sign-in stays in macOS Keychain. Cached mail and drafts stay on this Mac.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
         }
     }
     private func fontPicker(_ title: String, selection: Binding<String>) -> some View { Picker(title, selection: selection) { ForEach(FontChoices.names, id: \.self) { Text($0).tag($0) } } }

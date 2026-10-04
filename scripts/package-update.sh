@@ -13,5 +13,12 @@ codesign --verify --deep --strict "$OUT/Post.app"
 ditto -c -k --sequesterRsrc --keepParent "$OUT/Post.app" "$OUT/Post-v$VERSION.zip"
 cp "$ROOT/RELEASE_NOTES.md" "$OUT/Post-v$VERSION.md"
 "$ROOT/.build/sparkle/bin/generate_appcast" --account com.jack.Post.updates --maximum-deltas 0 --embed-release-notes --download-url-prefix "https://github.com/JackCosta2612/Post/releases/download/v$VERSION/" "$OUT"
+# Each retained archive belongs to its own release, including older feed entries.
+python3 - "$OUT/appcast.xml" <<'FEED'
+import re, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+p.write_text(re.sub(r'https://github.com/JackCosta2612/Post/releases/download/v[^/]+/(Post-v([^/"\s]+)\.zip)', lambda m: 'https://github.com/JackCosta2612/Post/releases/download/v' + m[2] + '/' + m[1], p.read_text()))
+FEED
 cp "$OUT/appcast.xml" "$ROOT/docs/appcast.xml"
 echo "Signed update: $OUT/Post-v$VERSION.zip"

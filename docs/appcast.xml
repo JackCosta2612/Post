@@ -3,6 +3,24 @@
     <channel>
         <title>Post</title>
         <item>
+            <title>0.2.4</title>
+            <pubDate>Sun, 04 Oct 2026 12:17:13 +0200</pubDate>
+            <sparkle:version>45</sparkle:version>
+            <sparkle:shortVersionString>0.2.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[Post 0.2.4
+
+- Search all mail, including archived messages, Spam and Trash, or limit results to the current folder. Downloaded matches appear immediately while Gmail finds more results.
+- Conversations display their text before inline images finish loading. Opened threads stay cached across launches and refresh when Gmail reports changes.
+- Balanced mode preloads two nearby conversations. Faster mode preloads six. Concurrent requests for the same conversation share one download.
+- Softer sidebar transitions and button feedback, with reduced motion support.
+- Settings have more space, consistent cards and clearer secondary text in light and dark mode.
+
+Use Post → Check for updates to install this release.
+]]></description>
+            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.4/Post-v0.2.4.zip" length="5021169" type="application/octet-stream" sparkle:edSignature="4vsHftIqWFlap/BScVeGs/7cgWA69dxZ69jzEVY0e7WfqPv/Wu4NeJwD8l6xyr60C3Ma1+YLAv8Q8T43uN2EAg=="/>
+        </item>
+        <item>
             <title>0.2.3</title>
             <pubDate>Fri, 02 Oct 2026 21:16:16 +0200</pubDate>
             <sparkle:version>44</sparkle:version>

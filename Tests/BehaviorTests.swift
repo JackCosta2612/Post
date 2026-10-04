@@ -17,6 +17,25 @@ final class DeliveryMock: URLProtocol, @unchecked Sendable {
     override func stopLoading() {}
 }
 
+final class SearchMock: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!
+        let query = components.queryItems?.first { $0.name == "q" }?.value ?? ""
+        let value: [String: Any]
+        if request.url!.lastPathComponent == "messages" {
+            value = ["messages": [["id": query.contains("in:anywhere") ? "remote-trash" : "remote-inbox"]], "nextPageToken": "more"]
+        } else {
+            let id = request.url!.lastPathComponent
+            value = ["id": id, "threadId": id, "labelIds": [id == "remote-trash" ? "TRASH" : "INBOX"], "payload": ["mimeType": "text/plain", "headers": [["name": "Subject", "value": "Server-only match"]], "body": ["data": Data("Remote content".utf8).base64URL]]]
+        }
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: try! JSONSerialization.data(withJSONObject: value)); client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
 @main
 struct BehaviorTests {
     @MainActor static func main() async throws {
@@ -79,6 +98,32 @@ struct BehaviorTests {
         restoredFolders.chooseFolder("CATEGORY_PROMOTIONS")
         check(restoredFolders.visibleMessages.map(\.id) == [promotion.id], "Folder list survives app restart")
         restoredFolders.loadTask?.cancel()
+        let searching = MailStore(directory: directory.appendingPathComponent("Search"))
+        var inboxMatch = searching.messages[0]; inboxMatch.id = "local-inbox"; inboxMatch.subject = "Needle"; inboxMatch.labels = ["INBOX"]
+        var trashMatch = inboxMatch; trashMatch.id = "local-trash"; trashMatch.labels = ["TRASH"]
+        var archivedMatch = inboxMatch; archivedMatch.id = "local-archive"; archivedMatch.labels = []
+        searching.messages = [inboxMatch, trashMatch, archivedMatch]
+        searching.search = "needle"
+        check(Set(searching.visibleMessages.map(\.id)) == ["local-inbox", "local-trash", "local-archive"], "All-mail search includes archived and trashed downloaded messages")
+        searching.searchScope = "folder"
+        check(searching.visibleMessages.map(\.id) == ["local-inbox"], "Folder search excludes other sections")
+        searching.search = "absent"
+        check(searching.visibleMessages.isEmpty, "Changing search invalidates cached matches")
+        searching.search = ""
+        check(searching.visibleMessages.map(\.id) == ["local-inbox"], "Clearing search restores current folder")
+        let searchConfig = URLSessionConfiguration.ephemeral; searchConfig.protocolClasses = [SearchMock.self]
+        let searchClient = GmailClient(session: URLSession(configuration: searchConfig), client: .init(clientID: "test", clientSecret: "test"), token: .init(access: "test", refresh: "test", expiry: Date().addingTimeInterval(3600)), restore: false)
+        let remoteSearching = MailStore(directory: directory.appendingPathComponent("RemoteSearch"), gmailClient: searchClient)
+        remoteSearching.connected = true; remoteSearching.currentRemoteIDs = []
+        remoteSearching.search = "attachment-only-match"
+        await remoteSearching.fetchSearch()
+        check(remoteSearching.visibleMessages.contains { $0.id == "remote-trash" }, "Server search includes Trash matches absent from the loaded inbox and local body")
+        check(remoteSearching.searchNextPage == "more" && remoteSearching.nextPage == nil, "Search pagination stays separate from folder pagination")
+        remoteSearching.searchScope = "folder"
+        await remoteSearching.fetchSearch()
+        check(remoteSearching.visibleMessages.map(\.id) == ["remote-inbox"], "Switching scope removes previous remote search results")
+        remoteSearching.search = ""
+        check(remoteSearching.visibleMessages.isEmpty, "Clearing remote search restores authoritative empty folder")
         let store = MailStore(directory: directory)
         let searchIDs = store.visibleMessages.map(\.id)
         store.search = "Northpeak"

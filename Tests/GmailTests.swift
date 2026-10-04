@@ -135,6 +135,23 @@ struct GmailTests {
         let visibleFolders = try await visibleCounts.folders()
         let promotions = visibleFolders.first { $0.id == "CATEGORY_PROMOTIONS" }!
         check(promotions.unreadCount == 0 && promotions.totalCount == 0, "Promotions badges exclude messages retained in Trash and Spam")
+        var threadCalls = 0
+        var inlineCalls = 0
+        MockProtocol.handler = { request in
+            if request.url!.path.contains("/attachments/") { inlineCalls += 1; return (200, ["data": Data("image".utf8).base64URL]) }
+            threadCalls += 1
+            Thread.sleep(forTimeInterval: 0.05)
+            return (200, ["messages": [["id": "body-first", "threadId": "conversation", "payload": ["mimeType": "multipart/related", "parts": [["mimeType": "text/html", "body": ["data": Data("<p>Hello</p><img src=\"cid:image\">".utf8).base64URL]], ["mimeType": "image/png", "headers": [["name": "Content-ID", "value": "<image>"]], "body": ["attachmentId": "inline-image"]]]]]]])
+        }
+        async let firstThread = client.thread("conversation", loadImages: false)
+        async let secondThread = client.thread("conversation", loadImages: false)
+        let bodies = try await (firstThread, secondThread)
+        check(threadCalls == 1, "Concurrent opens share one conversation request")
+        check(inlineCalls == 0 && bodies.0[0].html.contains("Hello"), "Conversation bodies load without waiting for inline images")
+        let hydrated = try await client.hydrateInlineImages(bodies.0)
+        check(inlineCalls == 1 && hydrated[0].html.contains("data:image/png"), "Inline media loads independently after conversation text")
+        _ = try await client.hydrateInlineImages(bodies.0, cached: hydrated)
+        check(inlineCalls == 1, "Cached inline media avoids another download")
         print("PASS: \(checks) Gmail integration checks with simulated responses")
     }
 }

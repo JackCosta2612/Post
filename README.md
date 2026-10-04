@@ -1,6 +1,6 @@
 # Post
 
-[![Latest release](https://img.shields.io/badge/release-v0.2.3-477fb4)](https://github.com/JackCosta2612/Post/releases/tag/v0.2.3) [![Checks](https://github.com/JackCosta2612/Post/actions/workflows/checks.yml/badge.svg)](https://github.com/JackCosta2612/Post/actions) [![MIT](https://img.shields.io/badge/license-MIT-697783)](LICENSE)
+[![Latest release](https://img.shields.io/badge/release-v0.2.4-477fb4)](https://github.com/JackCosta2612/Post/releases/tag/v0.2.4) [![Checks](https://github.com/JackCosta2612/Post/actions/workflows/checks.yml/badge.svg)](https://github.com/JackCosta2612/Post/actions) [![MIT](https://img.shields.io/badge/license-MIT-697783)](LICENSE)
 
 A native SwiftUI email client for macOS and one Gmail account. Labels, keyboard navigation, and a quiet three-pane layout are the focus.
 
@@ -15,7 +15,7 @@ https://github.com/user-attachments/assets/f331c8a5-f2b5-4768-816f-6a3f7d1f7de0
 
 ## Try it
 
-Requires macOS 14 or later. [Download Post](https://github.com/JackCosta2612/Post/releases/latest), extract the app archive and move Post to Applications. Version 0.2.3 enables signed in-app updates for future releases.
+Requires macOS 14 or later. [Download Post](https://github.com/JackCosta2612/Post/releases/latest), extract the app archive and move Post to Applications. Versions 0.2.3 and later support signed in-app updates.
 
 To build from source, install Apple's Command Line Tools or Xcode. The build fetches a verified copy of Sparkle. No paid Apple developer membership is needed for a local build.
 
@@ -47,7 +47,7 @@ Search filters and highlights the loaded list. Mail is cached for offline readin
 
 ## Stay up to date
 
-Open **Post → Check for updates…** to compare your installed version with the latest GitHub release. The same check is available from the account menu and Settings → Account, alongside the installed version and build. Updates are installed manually. See the [release guide](docs/releases.md) and [changelog](CHANGELOG.md).
+Open **Post → Check for updates…** to compare your installed version with the latest GitHub release. The same check is available from the account menu and Settings → Account, alongside the installed version and build. Post can download and install signed updates without a package manager. Enable automatic installation in Settings → Account, or check manually. See the [release guide](docs/releases.md) and [changelog](CHANGELOG.md).
 
 ## Default keys
 

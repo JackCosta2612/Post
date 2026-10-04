@@ -214,6 +214,7 @@ struct MailCache: Codable {
     var historyID: String? = nil
     var preferences = MailPreferences()
     var folderSnapshots: [String: FolderSnapshot]? = nil
+    var completedThreads: [String]? = nil
 }
 
 extension Data {
