@@ -5,6 +5,24 @@
         <item>
             <title>0.2.4</title>
             <pubDate>Sun, 04 Oct 2026 12:17:13 +0200</pubDate>
+            <sparkle:version>47</sparkle:version>
+            <sparkle:shortVersionString>0.2.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[Post 0.2.4
+
+- Search all mail, including archived messages, Spam and Trash, or limit results to the current folder. Downloaded matches appear immediately while Gmail finds more results.
+- Conversations display their text before inline images finish loading. Opened threads stay cached across launches and refresh when Gmail reports changes.
+- Balanced mode preloads two nearby conversations. Faster mode preloads six. Concurrent requests for the same conversation share one download.
+- Softer sidebar transitions and button feedback, with reduced motion support.
+- Settings have more space, consistent cards and clearer secondary text in light and dark mode.
+
+Use Post → Check for updates to install this release.
+]]></description>
+            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.4/Post-v0.2.4.zip" length="5026598" type="application/octet-stream" sparkle:edSignature="REu1DpSotOtXbdBYW+a2Fw+5OkOy79Jv0P8qX3VyiI/Wik+sgunrkkSWlaQV917Nlv5TnRKJPjOgJ+H/cQiaBw=="/>
+        </item>
+        <item>
+            <title>0.2.4</title>
+            <pubDate>Sun, 04 Oct 2026 12:17:13 +0200</pubDate>
             <sparkle:version>46</sparkle:version>
             <sparkle:shortVersionString>0.2.4</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
@@ -37,22 +55,6 @@ Use Post → Check for updates to install this release.
 Use Post → Check for updates to install this release.
 ]]></description>
             <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.4/Post-v0.2.4.zip" length="5021169" type="application/octet-stream" sparkle:edSignature="4vsHftIqWFlap/BScVeGs/7cgWA69dxZ69jzEVY0e7WfqPv/Wu4NeJwD8l6xyr60C3Ma1+YLAv8Q8T43uN2EAg=="/>
-        </item>
-        <item>
-            <title>0.2.3</title>
-            <pubDate>Fri, 02 Oct 2026 21:16:16 +0200</pubDate>
-            <sparkle:version>44</sparkle:version>
-            <sparkle:shortVersionString>0.2.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[Post 0.2.3
-
-- Signed in-app updates through GitHub. Check for updates in Post or enable automatic checks and installation in Settings → Account.
-- Release notes appear once after launching a newer version.
-- Includes the sidebar transitions, original-color email padding, badge fixes, sound selection and cursor improvements from 0.2.2.
-
-Install this version manually once to enable future in-app updates. Download the universal app zip for Apple silicon and Intel Macs, extract it and move Post to Applications. The app is locally signed and is not Apple-notarized. Each user supplies their own Google Desktop OAuth client.
-]]></description>
-            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.3/Post-v0.2.3.zip" length="4963395" type="application/octet-stream" sparkle:edSignature="oD9+eJp9HlfSyznMH/RZVugkwEefSGGj5xKFujR2dPpw4WXixzMlthSgia6lZQUFYstnnbYYgRL4dblmf2ZtCw=="/>
         </item>
     </channel>
 </rss>

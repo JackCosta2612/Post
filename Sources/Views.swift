@@ -394,7 +394,7 @@ struct ReadingPane: View {
         centerTask?.cancel()
         centerTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 150_000_000)
-            guard !Task.isCancelled, centeringID == target, store.selectedID == target, selectedBodyReady else { return }
+            guard !Task.isCancelled, centeringID == target, store.selectedID == target else { return }
             proxy.scrollTo(scrollTarget, anchor: .top)
             await Task.yield()
             guard !Task.isCancelled, store.selectedID == target else { return }
@@ -453,7 +453,7 @@ struct ReadingPane: View {
                             await Task.yield()
                             guard !Task.isCancelled, store.selectedID == selected.id else { return }
                             proxy.scrollTo(scrollTarget, anchor: .top)
-                            if selectedBodyReady { settleCenter(proxy, readyID: selected.id) }
+                            settleCenter(proxy, readyID: selected.id)
                         }
                         .onChange(of: store.threadMessages.map(\.id)) { _, _ in
                             guard automaticPositioning else { return }
