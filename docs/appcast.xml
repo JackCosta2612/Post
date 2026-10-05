@@ -3,6 +3,20 @@
     <channel>
         <title>Post</title>
         <item>
+            <title>0.2.6</title>
+            <pubDate>Mon, 05 Oct 2026 11:44:44 +0200</pubDate>
+            <sparkle:version>51</sparkle:version>
+            <sparkle:shortVersionString>0.2.6</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[Post 0.2.6
+
+- Fixed unread badges that could return after moving or reading messages.
+- Gmail label changes now invalidate cached folder counts, including changes from other mail clients.
+- Refreshes overlapping a message move preserve the corrected badge. Manual refresh requests fresh counts.
+]]></description>
+            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.6/Post-v0.2.6.zip" length="5135163" type="application/octet-stream" sparkle:edSignature="kjHXf+o8Zgx8Voyb6Nt+fACQf0zDTJG1KzryA/lH3anNuQcfNwiWEOMCCigcTHwuwFNlF8Mddj7/htQvPxq7CQ=="/>
+        </item>
+        <item>
             <title>0.2.5</title>
             <pubDate>Sun, 04 Oct 2026 20:21:01 +0200</pubDate>
             <sparkle:version>49</sparkle:version>
@@ -35,24 +49,6 @@ No external AI service, API key or ongoing fees are needed. Sorting runs while P
 Use Post → Check for updates to install this release.
 ]]></description>
             <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.4/Post-v0.2.4.zip" length="5026598" type="application/octet-stream" sparkle:edSignature="REu1DpSotOtXbdBYW+a2Fw+5OkOy79Jv0P8qX3VyiI/Wik+sgunrkkSWlaQV917Nlv5TnRKJPjOgJ+H/cQiaBw=="/>
-        </item>
-        <item>
-            <title>0.2.4</title>
-            <pubDate>Sun, 04 Oct 2026 12:17:13 +0200</pubDate>
-            <sparkle:version>46</sparkle:version>
-            <sparkle:shortVersionString>0.2.4</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[Post 0.2.4
-
-- Search all mail, including archived messages, Spam and Trash, or limit results to the current folder. Downloaded matches appear immediately while Gmail finds more results.
-- Conversations display their text before inline images finish loading. Opened threads stay cached across launches and refresh when Gmail reports changes.
-- Balanced mode preloads two nearby conversations. Faster mode preloads six. Concurrent requests for the same conversation share one download.
-- Softer sidebar transitions and button feedback, with reduced motion support.
-- Settings have more space, consistent cards and clearer secondary text in light and dark mode.
-
-Use Post → Check for updates to install this release.
-]]></description>
-            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.4/Post-v0.2.4.zip" length="5027246" type="application/octet-stream" sparkle:edSignature="OqfD3DhQC7oplOeoRDB/8UjTTdXdr/LpzUbyMHxIvT8wxdu9BDGYUtZCMOjaEJNDMEnGiG6svKIpsKttbTAJCA=="/>
         </item>
     </channel>
 </rss>
