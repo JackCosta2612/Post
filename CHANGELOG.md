@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.8
+
+- Fix embedded image resolution for duplicate, encoded and case-varied content identifiers.
+- Refresh expired Gmail image references once while retaining downloaded image data.
+- Paste clipboard text using the composer's current font and style.
+
 ## 0.2.7 · 5 October 2026
 
 - Refresh Gmail label metadata when a query result conflicts with cached Inbox or Unread membership, reusing the downloaded message body.

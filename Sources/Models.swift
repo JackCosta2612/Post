@@ -41,9 +41,18 @@ struct MailMessage: Codable, Identifiable, Equatable {
         for match in matches.reversed() {
             guard let identifierRange = Range(match.range(at: 1), in: html), let range = Range(match.range, in: html) else { continue }
             let identifier = String(html[identifierRange]).removingPercentEncoding ?? String(html[identifierRange])
-            guard let image = attachments.first(where: { $0.contentID == identifier }), let bytes = image.data else { continue }
+            guard let image = attachments.first(where: { Self.normalizedContentID($0.contentID ?? "") == Self.normalizedContentID(identifier) && $0.data?.isEmpty == false }), let bytes = image.data else { continue }
             html.replaceSubrange(range, with: "data:" + image.mimeType + ";base64," + bytes.base64EncodedString())
         }
+    }
+    static func normalizedContentID(_ value: String) -> String {
+        (value.removingPercentEncoding ?? value).trimmingCharacters(in: CharacterSet(charactersIn: "<> \t\r\n")).lowercased()
+    }
+    var unresolvedImageIDs: Set<String> {
+        guard let regex = try? NSRegularExpression(pattern: "cid:([^\\\"'\\s<>]+)", options: .caseInsensitive) else { return [] }
+        return Set(regex.matches(in: html, range: NSRange(html.startIndex..., in: html)).compactMap {
+            Range($0.range(at: 1), in: html).map { Self.normalizedContentID(String(html[$0])) }
+        })
     }
     var unread: Bool { labels.contains("UNREAD") }
     var senderName: String { from.split(separator: "<").first.map(String.init)?.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\"", with: "") ?? from }

@@ -118,6 +118,11 @@ struct RichComposer: NSViewRepresentable {
         }
     }
     final class ComposerTextView: NSTextView {
+        override func paste(_ sender: Any?) {
+            // Match the insertion style rather than importing the source document's fonts.
+            pasteAsPlainText(sender)
+        }
+
         override func keyDown(with event: NSEvent) {
             if event.modifierFlags.intersection([.command, .option, .control]) == .command {
                 switch event.charactersIgnoringModifiers?.lowercased() {

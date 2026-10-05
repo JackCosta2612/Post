@@ -326,7 +326,7 @@ actor GmailClient {
         if !loadImages { return values.sorted { $0.date < $1.date } }
         return try await hydrateInlineImages(values, cached: cached)
     }
-    func hydrateInlineImages(_ input: [MailMessage], cached: [MailMessage] = []) async throws -> [MailMessage] {
+    func hydrateInlineImages(_ input: [MailMessage], cached: [MailMessage] = [], retryMissing: Bool = true) async throws -> [MailMessage] {
         var values = input
         let cachedMap = Dictionary(cached.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
         values = try await withThrowingTaskGroup(of: MailMessage.self) { group in
@@ -335,10 +335,18 @@ actor GmailClient {
                 message.resolveInlineImages(reusing: cachedMap[message.id])
                 for j in message.attachments.indices {
                     let item = message.attachments[j]
-                    guard let cid = item.contentID, message.html.contains("cid:" + cid) else { continue }
+                    guard let cid = item.contentID, message.unresolvedImageIDs.contains(MailMessage.normalizedContentID(cid)) else { continue }
                     if let bytes = try? await self.attachment(messageID: message.id, attachment: item) {
                         message.attachments[j].data = bytes
-                        message.html = message.html.replacingOccurrences(of: "cid:" + cid, with: "data:" + item.mimeType + ";base64," + bytes.base64EncodedString())
+                        message.resolveInlineImages()
+                    }
+                }
+                if retryMissing, !message.unresolvedImageIDs.isEmpty,
+                   message.attachments.contains(where: { message.unresolvedImageIDs.contains(MailMessage.normalizedContentID($0.contentID ?? "")) }),
+                   !Task.isCancelled, let fresh = try? await self.message(message.id) {
+                    // Gmail attachment references can change. Refresh MIME once, retaining downloaded parts.
+                    if let recovered = try? await self.hydrateInlineImages([fresh], cached: [message], retryMissing: false).first {
+                        return recovered
                     }
                 }
                 return message

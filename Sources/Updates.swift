@@ -16,7 +16,7 @@ struct ReleaseVersion: Comparable {
 }
 @MainActor final class PostUpdates: ObservableObject {
     static let shared = PostUpdates()
-    static var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.7" }
+    static var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.8" }
     static var build: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0" }
     @Published var notesVisible = false
     private var started = false

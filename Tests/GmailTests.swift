@@ -182,6 +182,29 @@ struct GmailTests {
         check(inlineCalls == 1 && hydrated[0].html.contains("data:image/png"), "Inline media loads independently after conversation text")
         _ = try await client.hydrateInlineImages(bodies.0, cached: hydrated)
         check(inlineCalls == 1, "Cached inline media avoids another download")
+        var encoded = bodies.0[0]
+        encoded.html = "<img src=\"CID:LOGO%40mail\"><img src=\"cid:second\">"
+        encoded.attachments = [
+            .init(id: "missing", name: "logo", mimeType: "image/png", size: 3, contentID: "logo@mail"),
+            .init(id: "ready", name: "logo", mimeType: "image/png", size: 3, data: Data([1, 2, 3]), contentID: "logo@mail"),
+            .init(id: "second", name: "second", mimeType: "image/png", size: 3, contentID: "second")
+        ]
+        encoded.resolveInlineImages()
+        check(encoded.html.contains("data:image/png;base64,AQID"), "Duplicate CID chooses downloaded bytes and accepts encoded references")
+        let completed = try await client.hydrateInlineImages([encoded])
+        check(completed[0].unresolvedImageIDs.isEmpty, "Remaining embedded images hydrate through the same CID resolver")
+        var refreshCalls = 0
+        MockProtocol.handler = { request in
+            if request.url!.path.contains("/attachments/stale") { return (404, ["error": ["message": "Expired attachment reference"]]) }
+            if request.url!.path.contains("/attachments/") { return (200, ["data": Data([4, 5, 6]).base64URL]) }
+            refreshCalls += 1
+            return (200, ["id": "body-first", "payload": ["mimeType": "multipart/related", "parts": [["mimeType": "text/html", "body": ["data": Data("<img src=\"cid:logo\">".utf8).base64URL]], ["mimeType": "image/png", "headers": [["name": "Content-ID", "value": "<logo>"]], "body": ["attachmentId": "fresh"]]]]])
+        }
+        var stale = bodies.0[0]
+        stale.html = "<img src=\"cid:logo\">"
+        stale.attachments = [.init(id: "stale", name: "logo", mimeType: "image/png", size: 3, contentID: "logo")]
+        let repaired = try await client.hydrateInlineImages([stale])
+        check(refreshCalls == 1 && repaired[0].unresolvedImageIDs.isEmpty, "Expired Gmail image references refresh MIME once and recover")
         print("PASS: \(checks) Gmail integration checks with simulated responses")
     }
 }
