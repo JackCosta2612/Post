@@ -122,6 +122,26 @@ struct GmailTests {
         MockProtocol.handler = { _ in countCalls += 1; return (200, ["messages": [["id": "x"]]]) }
         _ = try await counted.count(query: "is:unread"); _ = try await counted.count(query: "is:unread")
         check(countCalls == 1, "Repeated folder counts reuse their cached result")
+        MockProtocol.handler = { request in
+            if request.url!.path.hasSuffix("/history") {
+                return (200, ["historyId": "2", "history": [["labelsRemoved": [["message": ["id": "x"], "labelIds": ["INBOX", "UNREAD"]]]]]])
+            }
+            if request.url!.path.hasSuffix("/messages/x") {
+                return (200, ["id": "x", "threadId": "t", "labelIds": [], "payload": ["mimeType": "text/plain", "body": ["data": Data("body".utf8).base64URL]]])
+            }
+            countCalls += 1; return (200, ["messages": []])
+        }
+        let (changedLabels, _, _) = try await counted.changes(since: "1", cachedIDs: ["x"])
+        check(changedLabels.count == 1 && !changedLabels[0].unread, "Label-only history events refresh cached message state")
+        let correctedCount = try await counted.count(query: "is:unread")
+        check(correctedCount == 0 && countCalls == 2, "History changes invalidate unread counts immediately")
+        MockProtocol.handler = { request in
+            if request.url!.path.hasSuffix("/modify") { return (200, [:]) }
+            countCalls += 1; return (200, ["messages": [["id": "x"]]])
+        }
+        try await counted.modify(.init(messageID: "x", add: ["INBOX"], remove: []))
+        let restoredCount = try await counted.count(query: "is:unread")
+        check(restoredCount == 1 && countCalls == 3, "Completed label changes discard earlier count snapshots")
         let visibleCounts = GmailClient(session: session, client: .init(clientID: "test", clientSecret: "test"), token: .init(access: "test", refresh: "test", expiry: .distantFuture), restore: false)
         MockProtocol.handler = { request in
             let path = request.url!.path

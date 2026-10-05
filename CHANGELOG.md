@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.6 · 5 October 2026
+
+- Invalidate unread and folder counts after Gmail history changes and after completed message moves.
+- Handle label-only history events and prevent in-flight count requests from restoring stale cache entries.
+- Keep optimistic badge corrections when a refresh overlaps a message move. Manual refresh always requests fresh counts.
+
 ## 0.2.5 · 4 October 2026
 
 - Learn label choices locally from manual message moves and corrections, using subject, sender and unquoted content.

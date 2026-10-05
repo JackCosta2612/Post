@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class MailStore: ObservableObject {
+    private var labelRevision = UUID()
     @Published var messages: [MailMessage] = [] { didSet { cachedVisibleMessages = nil; rebuildThreadIndex() } }
     @Published var folders: [MailFolder] = MailFolder.defaults { didSet { cachedVisibleMessages = nil } }
     @Published var drafts: [ComposeDraft] = []
@@ -471,12 +472,14 @@ final class MailStore: ObservableObject {
         let generation = UUID(); refreshGeneration = generation
         var historyValid = historyID != nil
         var arrivals: [MailMessage] = []
+        let countRevision = labelRevision
         let oldIDs = Set(messages.map(\.id)); let viewID = folderID
         let cacheKey = folderCacheKey
         let query = activeFolderQuery
         if !silent { status = "Syncing Gmail…" }
         do {
             try await flushPending()
+            if manual { await gmail.invalidateCounts() }
             if !more {
                 if let historyID {
                     do {
@@ -510,7 +513,7 @@ final class MailStore: ObservableObject {
                         refreshedFolders[i].totalCount = previous.totalCount
                     }
                 }
-                folders = refreshedFolders
+                if labelRevision == countRevision && pending.isEmpty { folders = refreshedFolders }
                 if folderID == "primary", folderCacheKey != cacheKey {
                     restoreFolderSnapshot(); scheduleLoad(); persist(); return
                 }
@@ -524,7 +527,7 @@ final class MailStore: ObservableObject {
                 var countedFolders = folders
                 if let i = countedFolders.firstIndex(where: { $0.id == "primary" }) { countedFolders[i].unreadCount = primaryUnread; countedFolders[i].totalCount = primaryTotal }
                 if let i = countedFolders.firstIndex(where: { $0.id == "all" }) { countedFolders[i].unreadCount = allUnread; countedFolders[i].totalCount = allTotal }
-                folders = countedFolders
+                if labelRevision == countRevision && pending.isEmpty { folders = countedFolders }
                 if folderID == "DRAFT" { await loadDrafts() }
             }
             if !more, let previousSync = lastSync {
@@ -551,6 +554,7 @@ final class MailStore: ObservableObject {
     }
     func change(_ id: String, add: [String], remove: [String], recordUndo: Bool = true) {
         guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
+        labelRevision = UUID()
         let old = messages[index].labels
         if recordUndo { lastUndo = [(id, old)] }
         messages[index].labels.formUnion(add); messages[index].labels.subtract(remove)

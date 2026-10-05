@@ -95,6 +95,7 @@ actor GmailClient {
     private var requestCosts: [(Date, Int)] = []
     private var cooldownUntil = Date.distantPast
     private var cooldownSeconds: Double = 60
+    private var countGeneration = UUID()
     private var countCache: [String: (Date, Int)] = [:]
     private var threadRequests: [String: Task<[MailMessage], Error>] = [:]
     private var attachmentRequests: [String: Task<Data, Error>] = [:]
@@ -213,6 +214,7 @@ actor GmailClient {
     }
     func folders() async throws -> [MailFolder] {
         if let cached = folderCache, Date().timeIntervalSince(cached.0) < 300 { return cached.1 }
+        let generation = countGeneration
         let response = try await request("labels")
         let labels = response["labels"] as? [[String: Any]] ?? []
         var result = MailFolder.defaults.filter { !$0.isCustom }
@@ -238,7 +240,7 @@ actor GmailClient {
         }
         func rank(_ f: MailFolder) -> Int { if f.id == "primary" { return 0 }; if f.name == "Application confirmations" { return 1 }; if f.name == "Rejections" { return 2 }; if f.id == "CATEGORY_PROMOTIONS" { return 3 }; if f.name == "Newsletters" { return 4 }; if f.isCustom { return 5 }; return 6 + (MailFolder.defaults.firstIndex { $0.id == f.id } ?? 0) }
         let sorted = result.sorted { rank($0) == rank($1) ? $0.name < $1.name : rank($0) < rank($1) }
-        folderCache = (Date(), sorted); return sorted
+        if countGeneration == generation { folderCache = (Date(), sorted) }; return sorted
     }
     func list(query: String, page: String? = nil, cached: [MailMessage] = []) async throws -> ([MailMessage], String?) {
         var parameters = ["q": query, "maxResults": "50", "includeSpamTrash": "true"]
@@ -259,6 +261,7 @@ actor GmailClient {
     }
     func count(query: String) async throws -> Int {
         if let cached = countCache[query], Date().timeIntervalSince(cached.0) < 300 { return cached.1 }
+        let generation = countGeneration
         var count = 0; var page: String?
         repeat {
             var params = ["q": query, "maxResults": "500", "includeSpamTrash": "true"]
@@ -267,7 +270,7 @@ actor GmailClient {
             count += (response["messages"] as? [[String: Any]] ?? []).count
             page = response["nextPageToken"] as? String
         } while page != nil
-        countCache[query] = (Date(), count)
+        if countGeneration == generation { countCache[query] = (Date(), count) }
         return count
     }
     func profileHistory() async throws -> String? { try await request("profile")["historyId"] as? String }
@@ -278,6 +281,12 @@ actor GmailClient {
             if let page { params["pageToken"] = page }
             let json = try await request("history", query: params); newest = json["historyId"] as? String
             for h in json["history"] as? [[String: Any]] ?? [] {
+                invalidateCounts()
+                for key in ["labelsAdded", "labelsRemoved"] {
+                    for value in h[key] as? [[String: Any]] ?? [] {
+                        if let message = value["message"] as? [String: Any], let id = message["id"] as? String, cachedIDs.contains(id) { changed.insert(id) }
+                    }
+                }
                 for value in h["messages"] as? [[String: Any]] ?? [] { if let id = value["id"] as? String, cachedIDs.contains(id) { changed.insert(id) } }
                 for value in h["messagesAdded"] as? [[String: Any]] ?? [] { if let m = value["message"] as? [String: Any], let id = m["id"] as? String { changed.insert(id) } }
                 for value in h["messagesDeleted"] as? [[String: Any]] ?? [] { if let m = value["message"] as? [String: Any], let id = m["id"] as? String { deleted.insert(id) } }
@@ -322,8 +331,10 @@ actor GmailClient {
         }
         return values.sorted { $0.date < $1.date }
     }
+    func invalidateCounts() { countGeneration = UUID(); countCache = [:]; folderCache = nil }
     func modify(_ change: PendingChange) async throws {
-        countCache = [:]; folderCache = nil
+        invalidateCounts()
+        defer { invalidateCounts() }
         var add = change.add; var remove = change.remove
         if add.contains("TRASH") {
             _ = try await request("messages/\(change.messageID)/trash", method: "POST")
