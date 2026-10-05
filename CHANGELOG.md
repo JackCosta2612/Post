@@ -2,6 +2,9 @@
 
 ## 0.2.7 · 5 October 2026
 
+- Refresh Gmail label metadata when a query result conflicts with cached Inbox or Unread membership, reusing the downloaded message body.
+- Apply explicit Gmail Inbox and Unread label constraints to both lists and counts.
+
 - Explicitly exclude Spam and Trash from Primary’s Gmail query so its counts match the messages shown in the list.
 
 ## 0.2.6 · 5 October 2026

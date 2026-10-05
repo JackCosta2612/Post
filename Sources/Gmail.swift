@@ -252,7 +252,16 @@ actor GmailClient {
         for batchStart in stride(from: 0, to: ids.count, by: 5) {
             let batch = Array(ids[batchStart..<min(ids.count, batchStart + 5)])
             let items = try await withThrowingTaskGroup(of: MailMessage.self) { group in
-                for id in batch { group.addTask { if let existing = cachedMap[id] { return existing }; return try await self.message(id) } }
+                for id in batch { group.addTask {
+                    if var existing = cachedMap[id] {
+                        if !Set(Self.requiredLabels(query)).isSubset(of: existing.labels) {
+                            let metadata = try await self.request("messages/\(id)", query: ["format": "minimal"])
+                            existing.labels = Set(metadata["labelIds"] as? [String] ?? [])
+                        }
+                        return existing
+                    }
+                    return try await self.message(id)
+                } }
                 var items: [MailMessage] = []; for try await item in group { items.append(item) }; return items
             }
             messages += items

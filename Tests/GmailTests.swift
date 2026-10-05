@@ -112,6 +112,14 @@ struct GmailTests {
         }
         let (reused, _) = try await client.list(query: "in:inbox", cached: messages)
         check(reused.count == 1 && detailCalls == 0, "Unchanged message bodies are reused without get requests")
+        var archived = messages[0]; archived.labels = ["UNREAD"]
+        MockProtocol.handler = { request in
+            if request.url!.path.hasSuffix("/messages") { return (200, ["messages": [["id": "m1"]]]) }
+            let format = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "format" }?.value
+            return format == "minimal" ? (200, ["labelIds": ["INBOX", "UNREAD"]]) : (500, [:])
+        }
+        let (reconciled, _) = try await client.list(query: "in:inbox is:unread", cached: [archived])
+        check(reconciled.first?.labels == ["INBOX", "UNREAD"] && reconciled.first?.body == archived.body, "Query conflicts refresh labels without downloading a cached body again")
         check(GmailClient.quotaCost("messages/m1", method: "GET") == 20 && GmailClient.quotaCost("messages/send", method: "POST") == 100, "Pacing accounts for Gmail method costs")
         let limited = GmailClient(session: session, client: .init(clientID: "test", clientSecret: "test"), token: .init(access: "test-access", refresh: "test-refresh", expiry: Date().addingTimeInterval(3600)), restore: false)
         var quotaCalls = 0

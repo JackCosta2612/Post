@@ -1,4 +1,5 @@
 Post 0.2.7
 
-- Fixed a remaining Primary badge mismatch by excluding Spam and Trash from its server query, matching the message list.
-- Apply explicit Inbox and Unread label constraints to Gmail list and count requests, avoiding archived matches from search.
+- Fixed unread messages being hidden because Post reused stale cached labels. When a Gmail query conflicts with the cached Inbox or Unread state, Post fetches current label metadata while keeping the downloaded body.
+- Apply explicit Inbox and Unread label constraints to both Gmail lists and counts.
+- Exclude Spam and Trash from Primary’s server query, matching its message list.
