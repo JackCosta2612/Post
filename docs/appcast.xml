@@ -3,52 +3,43 @@
     <channel>
         <title>Post</title>
         <item>
-            <title>0.2.6</title>
-            <pubDate>Mon, 05 Oct 2026 11:44:44 +0200</pubDate>
-            <sparkle:version>51</sparkle:version>
-            <sparkle:shortVersionString>0.2.6</sparkle:shortVersionString>
+            <title>0.2.7</title>
+            <pubDate>Mon, 05 Oct 2026 11:54:51 +0200</pubDate>
+            <sparkle:version>55</sparkle:version>
+            <sparkle:shortVersionString>0.2.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[Post 0.2.6
+            <description sparkle:format="markdown"><![CDATA[Post 0.2.7
 
-- Fixed unread badges that could return after moving or reading messages.
-- Gmail label changes now invalidate cached folder counts, including changes from other mail clients.
-- Refreshes overlapping a message move preserve the corrected badge. Manual refresh requests fresh counts.
+- Fixed unread messages being hidden because Post reused stale cached labels. When a Gmail query conflicts with the cached Inbox or Unread state, Post fetches current label metadata while keeping the downloaded body.
+- Apply explicit Inbox and Unread label constraints to both Gmail lists and counts.
+- Exclude Spam and Trash from Primary’s server query, matching its message list.
 ]]></description>
-            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.6/Post-v0.2.6.zip" length="5135163" type="application/octet-stream" sparkle:edSignature="kjHXf+o8Zgx8Voyb6Nt+fACQf0zDTJG1KzryA/lH3anNuQcfNwiWEOMCCigcTHwuwFNlF8Mddj7/htQvPxq7CQ=="/>
+            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.7/Post-v0.2.7.zip" length="5139564" type="application/octet-stream" sparkle:edSignature="Y8S6CCMKsxDy0OWNForjE7eZbN6XmT6tdc//4TdvjdWynqUnkHfyEjUjkn9fC1paXZLfwLRPZWpR2062Oyf+Cg=="/>
         </item>
         <item>
-            <title>0.2.5</title>
-            <pubDate>Sun, 04 Oct 2026 20:21:01 +0200</pubDate>
-            <sparkle:version>49</sparkle:version>
-            <sparkle:shortVersionString>0.2.5</sparkle:shortVersionString>
+            <title>0.2.7</title>
+            <pubDate>Mon, 05 Oct 2026 11:54:51 +0200</pubDate>
+            <sparkle:version>54</sparkle:version>
+            <sparkle:shortVersionString>0.2.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[Post 0.2.5
+            <description sparkle:format="markdown"><![CDATA[Post 0.2.7
 
-- Post learns from your manual label moves using sender, subject and unquoted message content. Learning runs entirely on your Mac.
-- After at least three strong matching examples, clear new arrivals move to their label and leave the inbox. Uncertain messages stay in the inbox. Automatic moves never train themselves.
-- Settings → Sorting lets you pause sorting, choose destinations, learn from already organized downloaded mail, reset learning and undo recent automatic moves. Undo also teaches a correction.
-
-No external AI service, API key or ongoing fees are needed. Sorting runs while Post is open and does not reorganize your historical inbox.
+- Fixed a remaining Primary badge mismatch by excluding Spam and Trash from its server query, matching the message list.
+- Apply explicit Inbox and Unread label constraints to Gmail list and count requests, avoiding archived matches from search.
 ]]></description>
-            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.5/Post-v0.2.5.zip" length="5130577" type="application/octet-stream" sparkle:edSignature="9y9w5bBX63ftDKdjEuSd5RPLHg5S+W1ec2jWkn2DHi2euBBrC4quDMlt6TXY+8K74GruCNtXuO3EDZfvmyI6DA=="/>
+            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.7/Post-v0.2.7.zip" length="5139121" type="application/octet-stream" sparkle:edSignature="6WHa194zXuWrAQ2gEXtMq/J9dPMqOTM+OhXnyjZ9iPq9FT/qWEJV2xZ0+O1VeUkUOf+DLkv/UqV5mfmTlQBmDg=="/>
         </item>
         <item>
-            <title>0.2.4</title>
-            <pubDate>Sun, 04 Oct 2026 12:17:13 +0200</pubDate>
-            <sparkle:version>47</sparkle:version>
-            <sparkle:shortVersionString>0.2.4</sparkle:shortVersionString>
+            <title>0.2.7</title>
+            <pubDate>Mon, 05 Oct 2026 11:54:51 +0200</pubDate>
+            <sparkle:version>53</sparkle:version>
+            <sparkle:shortVersionString>0.2.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[Post 0.2.4
+            <description sparkle:format="markdown"><![CDATA[Post 0.2.7
 
-- Search all mail, including archived messages, Spam and Trash, or limit results to the current folder. Downloaded matches appear immediately while Gmail finds more results.
-- Conversations display their text before inline images finish loading. Opened threads stay cached across launches and refresh when Gmail reports changes.
-- Balanced mode preloads two nearby conversations. Faster mode preloads six. Concurrent requests for the same conversation share one download.
-- Softer sidebar transitions and button feedback, with reduced motion support.
-- Settings have more space, consistent cards and clearer secondary text in light and dark mode.
-
-Use Post → Check for updates to install this release.
+- Fixed a remaining Primary badge mismatch by excluding Spam and Trash from its server query, matching the message list.
 ]]></description>
-            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.4/Post-v0.2.4.zip" length="5026598" type="application/octet-stream" sparkle:edSignature="REu1DpSotOtXbdBYW+a2Fw+5OkOy79Jv0P8qX3VyiI/Wik+sgunrkkSWlaQV917Nlv5TnRKJPjOgJ+H/cQiaBw=="/>
+            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.7/Post-v0.2.7.zip" length="5135425" type="application/octet-stream" sparkle:edSignature="9q/23+NHis8UQVr+SgC2hsDAo9iGbI1QNAd2oVL7nbMzlvfKh3okBLwyV5zrElgKh22aFK7ZjRdX50TGgdmZAg=="/>
         </item>
     </channel>
 </rss>
