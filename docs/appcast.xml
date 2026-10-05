@@ -3,6 +3,19 @@
     <channel>
         <title>Post</title>
         <item>
+            <title>0.2.8</title>
+            <pubDate>Mon, 05 Oct 2026 16:25:58 +0200</pubDate>
+            <sparkle:version>57</sparkle:version>
+            <sparkle:shortVersionString>0.2.8</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[# Post 0.2.8
+
+- Embedded logos and images load more reliably, including older cached messages.
+- Pasted text matches your composer font instead of importing a different font.
+]]></description>
+            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.8/Post-v0.2.8.zip" length="5145562" type="application/octet-stream" sparkle:edSignature="yLDiTy1JDAjodmwUM4fukwcgBTGZIEfKoJ/Y5D5zV7dvUnihSaUP/si2g0x1WiRDm1RFU7KANWBSicPfmkAOCg=="/>
+        </item>
+        <item>
             <title>0.2.7</title>
             <pubDate>Mon, 05 Oct 2026 11:54:51 +0200</pubDate>
             <sparkle:version>55</sparkle:version>
@@ -28,18 +41,6 @@
 - Apply explicit Inbox and Unread label constraints to Gmail list and count requests, avoiding archived matches from search.
 ]]></description>
             <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.7/Post-v0.2.7.zip" length="5139121" type="application/octet-stream" sparkle:edSignature="6WHa194zXuWrAQ2gEXtMq/J9dPMqOTM+OhXnyjZ9iPq9FT/qWEJV2xZ0+O1VeUkUOf+DLkv/UqV5mfmTlQBmDg=="/>
-        </item>
-        <item>
-            <title>0.2.7</title>
-            <pubDate>Mon, 05 Oct 2026 11:54:51 +0200</pubDate>
-            <sparkle:version>53</sparkle:version>
-            <sparkle:shortVersionString>0.2.7</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[Post 0.2.7
-
-- Fixed a remaining Primary badge mismatch by excluding Spam and Trash from its server query, matching the message list.
-]]></description>
-            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.7/Post-v0.2.7.zip" length="5135425" type="application/octet-stream" sparkle:edSignature="9q/23+NHis8UQVr+SgC2hsDAo9iGbI1QNAd2oVL7nbMzlvfKh3okBLwyV5zrElgKh22aFK7ZjRdX50TGgdmZAg=="/>
         </item>
     </channel>
 </rss>
