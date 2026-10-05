@@ -190,7 +190,7 @@ final class MailStore: ObservableObject {
     var primaryExcludedLabels: [MailFolder] { primaryLabelChoices.filter { !primaryIncludedLabels.contains($0.id) } }
     var primaryQuery: String {
         let base = (preferences.primaryMode ?? "wide") == "wide" ? "in:inbox" : "in:inbox category:primary"
-        return ([base] + primaryExcludedLabels.map { "-\($0.query)" }).joined(separator: " ")
+        return ([base, "-in:trash", "-in:spam"] + primaryExcludedLabels.map { "-\($0.query)" }).joined(separator: " ")
     }
     func primarySettingsChanged() {
         select(nil)

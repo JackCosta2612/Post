@@ -377,6 +377,7 @@ struct BehaviorTests {
         primaryStore.folders.append(.init(id: "new-label", name: "New label", icon: "tag", query: "label:\"New label\"", isCustom: true))
         labeled.labels = ["INBOX", "new-label"]
         check(!primaryStore.contains(primaryStore.folders[0], labeled), "New labels excluded by default")
+        check(primaryStore.primaryQuery.contains("-in:trash") && primaryStore.primaryQuery.contains("-in:spam"), "Primary server query excludes the same Spam and Trash messages as its list")
         check(primaryStore.primaryQuery.contains("-label:\"New label\""), "Remote query excludes newly discovered label")
         labeled.labels = ["INBOX", "CATEGORY_UPDATES"]
         check(primaryStore.contains(primaryStore.folders[0], labeled), "Unlabeled Updates remain in wide Primary")

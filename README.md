@@ -1,6 +1,6 @@
 # Post
 
-[![Latest release](https://img.shields.io/badge/release-v0.2.6-477fb4)](https://github.com/JackCosta2612/Post/releases/tag/v0.2.6) [![Checks](https://github.com/JackCosta2612/Post/actions/workflows/checks.yml/badge.svg)](https://github.com/JackCosta2612/Post/actions) [![MIT](https://img.shields.io/badge/license-MIT-697783)](LICENSE)
+[![Latest release](https://img.shields.io/badge/release-v0.2.7-477fb4)](https://github.com/JackCosta2612/Post/releases/tag/v0.2.7) [![Checks](https://github.com/JackCosta2612/Post/actions/workflows/checks.yml/badge.svg)](https://github.com/JackCosta2612/Post/actions) [![MIT](https://img.shields.io/badge/license-MIT-697783)](LICENSE)
 
 A native SwiftUI email client for macOS and one Gmail account. Labels, keyboard navigation, and a quiet three-pane layout are the focus.
 

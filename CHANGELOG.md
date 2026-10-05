@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.7 · 5 October 2026
+
+- Explicitly exclude Spam and Trash from Primary’s Gmail query so its counts match the messages shown in the list.
+
 ## 0.2.6 · 5 October 2026
 
 - Invalidate unread and folder counts after Gmail history changes and after completed message moves.
