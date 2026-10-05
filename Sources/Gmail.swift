@@ -184,11 +184,11 @@ actor GmailClient {
         }
         return token.access
     }
-    func request(_ path: String, method: String = "GET", query: [String: String] = [:], body: [String: Any]? = nil) async throws -> [String: Any] {
+    func request(_ path: String, method: String = "GET", query: [String: String] = [:], labelIDs: [String] = [], body: [String: Any]? = nil) async throws -> [String: Any] {
         try await reserveQuota(Self.quotaCost(path, method: method))
         let access = try await accessToken()
         var c = URLComponents(string: "https://gmail.googleapis.com/gmail/v1/users/me/\(path)")!
-        c.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+        c.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) } + labelIDs.map { URLQueryItem(name: "labelIds", value: $0) }
         var r = URLRequest(url: c.url!); r.httpMethod = method; r.timeoutInterval = 30
         r.setValue("Bearer \(access)", forHTTPHeaderField: "Authorization")
         if let body { r.httpBody = try JSONSerialization.data(withJSONObject: body); r.setValue("application/json", forHTTPHeaderField: "Content-Type") }
@@ -245,7 +245,7 @@ actor GmailClient {
     func list(query: String, page: String? = nil, cached: [MailMessage] = []) async throws -> ([MailMessage], String?) {
         var parameters = ["q": query, "maxResults": "50", "includeSpamTrash": "true"]
         if let page { parameters["pageToken"] = page }
-        let json = try await request("messages", query: parameters)
+        let json = try await request("messages", query: parameters, labelIDs: Self.requiredLabels(query))
         let cachedMap = Dictionary(cached.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
         let ids = (json["messages"] as? [[String: String]] ?? []).compactMap { $0["id"] }
         var messages: [MailMessage] = []
@@ -259,6 +259,13 @@ actor GmailClient {
         }
         return (messages.sorted { $0.date > $1.date }, json["nextPageToken"] as? String)
     }
+    static func requiredLabels(_ query: String) -> [String] {
+        let operators = query.replacingOccurrences(of: "\"[^\"]*\"", with: "", options: .regularExpression).split(separator: " ")
+        var labels: [String] = []
+        if operators.contains("in:inbox") { labels.append("INBOX") }
+        if operators.contains("is:unread") { labels.append("UNREAD") }
+        return labels
+    }
     func count(query: String) async throws -> Int {
         if let cached = countCache[query], Date().timeIntervalSince(cached.0) < 300 { return cached.1 }
         let generation = countGeneration
@@ -266,7 +273,7 @@ actor GmailClient {
         repeat {
             var params = ["q": query, "maxResults": "500", "includeSpamTrash": "true"]
             if let page { params["pageToken"] = page }
-            let response = try await request("messages", query: params)
+            let response = try await request("messages", query: params, labelIDs: Self.requiredLabels(query))
             count += (response["messages"] as? [[String: Any]] ?? []).count
             page = response["nextPageToken"] as? String
         } while page != nil

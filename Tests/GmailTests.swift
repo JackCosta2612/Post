@@ -53,6 +53,8 @@ struct GmailTests {
         let (messages, next) = try await client.list(query: "in:inbox category:primary")
         check(messages.count == 1 && messages[0].body == "Message body", "List fetches full MIME messages")
         check(next == "page2", "Pagination token retained")
+        check(GmailClient.requiredLabels("in:inbox -label:\"Application Confirmation\" is:unread") == ["INBOX", "UNREAD"], "Inbox unread requests use explicit Gmail label constraints")
+        check(GmailClient.requiredLabels("in:anywhere \"in:inbox is:unread\"").isEmpty, "Quoted search text does not become a label constraint")
         let count = try await client.count(query: "in:inbox is:unread")
         check(count == 2, "Counts exhaust pagination instead of trusting estimates")
         try await client.modify(.init(messageID: "m1", add: ["TRASH"], remove: ["INBOX"]))
