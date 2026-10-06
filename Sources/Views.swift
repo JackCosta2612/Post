@@ -775,7 +775,7 @@ struct LabelPicker: View {
     @LocalState private var labelAndArchive = true
     @LocalState private var highlighted: String?
     @LocalState private var keyMonitor: Any?
-    private var choices: [MailFolder] { store.folders.filter { $0.isCustom || $0.id == "CATEGORY_PROMOTIONS" } }
+    private var choices: [MailFolder] { store.orderedSidebarLabels.filter { $0.isCustom || $0.id == "CATEGORY_PROMOTIONS" } }
     private func apply(_ folder: MailFolder) {
         let targets = store.messages.filter { store.actionIDs.contains($0.id) }
         let applied = !targets.isEmpty && targets.allSatisfy { $0.labels.contains(folder.id) }
