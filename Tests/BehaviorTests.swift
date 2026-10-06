@@ -273,6 +273,13 @@ struct BehaviorTests {
         legacy.to = "alice@example.com"; legacy.quotedHTML = "<strong>Original message</strong>"
         let quotedMIME = String(data: try MIMEBuilder.build(legacy, from: "sender@example.com"), encoding: .utf8)!
         check(quotedMIME.contains("multipart/alternative") && quotedMIME.contains("text/html; charset=UTF-8"), "Reply sends both plain text and formatted HTML")
+        var inlineReply = legacy
+        inlineReply.quotedHTML = "<img width=\"14\" height=\"14\" src=\"data:image/png;base64,AQID\"><img src=\"data:image/png;base64,AQID\">"
+        let inlinePackage = MIMEBuilder.inlineImages(inlineReply.quotedHTML!)
+        check(inlinePackage.parts.count == 1 && inlinePackage.html.contains("width=\"14\"") && !inlinePackage.html.contains("data:image"), "Quoted images keep dimensions and share one inline MIME part")
+        let inlineMIME = String(data: try MIMEBuilder.build(inlineReply, from: "sender@example.com"), encoding: .utf8)!
+        check(inlineMIME.contains("multipart/related") && inlineMIME.contains("Content-Disposition: inline") && inlineMIME.contains("Content-ID: <image-"), "Quoted images send as related inline media rather than standalone attachments")
+
         check(quotedMIME.contains(Data((legacy.body + "\n\n" + legacy.quoteHeading! + "\n" + legacy.quotedText!).utf8).base64EncodedString(options: [.lineLength76Characters, .endLineWithCarriageReturn, .endLineWithLineFeed])), "Outgoing reply preserves quoted content")
         store.chooseFolder("primary"); store.select("sample-1"); store.newCompose(kind: "reply")
         check(store.compose?.quotedText == store.selected?.body && !(store.compose?.body.contains("> Hi") ?? true), "New replies keep quote separate from editable text")

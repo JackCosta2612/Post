@@ -273,6 +273,25 @@ enum MIMEBuilder {
     static func htmlEscape(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;").replacingOccurrences(of: "\"", with: "&quot;")
     }
+    static func inlineImages(_ html: String) -> (html: String, parts: [MailAttachment]) {
+        guard let regex = try? NSRegularExpression(pattern: #"data:(image/[a-zA-Z0-9.+-]+);base64,([a-zA-Z0-9+/=\r\n]+)"#, options: .caseInsensitive) else { return (html, []) }
+        var output = html, parts: [MailAttachment] = []
+        var identifiers: [String: String] = [:]
+        for match in regex.matches(in: html, range: NSRange(html.startIndex..., in: html)).reversed() {
+            guard let range = Range(match.range, in: output), let typeRange = Range(match.range(at: 1), in: html), let dataRange = Range(match.range(at: 2), in: html),
+                  let data = Data(base64Encoded: String(html[dataRange]), options: .ignoreUnknownCharacters), !data.isEmpty else { continue }
+            let source = String(html[Range(match.range, in: html)!])
+            let identifier: String
+            if let existing = identifiers[source] { identifier = existing }
+            else {
+                identifier = "image-\(UUID().uuidString)@post.local"
+                identifiers[source] = identifier
+                parts.append(.init(id: identifier, name: "", mimeType: String(html[typeRange]), size: data.count, data: data, contentID: identifier))
+            }
+            output.replaceSubrange(range, with: "cid:" + identifier)
+        }
+        return (output, parts)
+    }
     static func build(_ draft: ComposeDraft, from: String) throws -> Data {
         guard !draft.to.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw MailError.message("Add a recipient before sending.") }
         let boundary = "post-\(UUID().uuidString)"
@@ -297,11 +316,26 @@ enum MIMEBuilder {
                 return styles + String(value[open.upperBound..<end.lowerBound])
             } ?? "<div style='white-space:pre-wrap'>\(htmlEscape(draft.body))</div>"
             let html = content + (draft.quotedText == nil ? "" : "<br><div>\(htmlEscape(draft.quoteHeading ?? "Previous message"))</div><blockquote style='border-left:2px solid #bccbd9;padding-left:16px;margin-left:0'>\(original)</blockquote>")
-            s += "Content-Type: multipart/alternative; boundary=\"\(alternative)\"\r\n\r\n--\(alternative)\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n\(base64(plain))\r\n--\(alternative)\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n\(base64(html))\r\n--\(alternative)--"
+            let embedded = inlineImages(html)
+            let related = "related-\(UUID().uuidString)"
+            s += "Content-Type: multipart/alternative; boundary=\"\(alternative)\"\r\n\r\n--\(alternative)\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n\(base64(plain))\r\n--\(alternative)\r\n"
+            if !embedded.parts.isEmpty {
+                s += "Content-Type: multipart/related; boundary=\"\(related)\"; type=\"text/html\"\r\n\r\n--\(related)\r\n"
+            }
+            s += "Content-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n\(base64(embedded.html))"
+            for image in embedded.parts {
+                s += "\r\n--\(related)\r\nContent-Type: \(image.mimeType)\r\nContent-ID: <\(image.contentID!)>\r\nContent-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\n" + image.data!.base64EncodedString(options: [.lineLength76Characters, .endLineWithCarriageReturn, .endLineWithLineFeed])
+            }
+            if !embedded.parts.isEmpty { s += "\r\n--\(related)--" }
+            s += "\r\n--\(alternative)--"
+
         } else {
             s += "Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" + base64(plain)
         }
         for attachment in draft.attachments {
+            // Quoted inline media is already included in the related HTML part.
+            if attachment.contentID != nil, let bytes = attachment.data,
+               draft.quotedHTML?.contains("data:" + attachment.mimeType + ";base64," + bytes.base64EncodedString()) == true { continue }
             guard let data = attachment.data else { throw MailError.message("The attachment \(attachment.name) is unavailable. Attach it again.") }
             let name = clean(attachment.name).replacingOccurrences(of: "\"", with: "'")
             s += "\r\n--\(boundary)\r\nContent-Type: \(clean(attachment.mimeType))\r\nContent-Disposition: attachment; filename=\"\(name)\"\r\nContent-Transfer-Encoding: base64\r\n\r\n" + data.base64EncodedString(options: [.lineLength76Characters, .endLineWithCarriageReturn, .endLineWithLineFeed])
