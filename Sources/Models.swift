@@ -56,6 +56,24 @@ struct MailMessage: Codable, Identifiable, Equatable {
     }
     var unread: Bool { labels.contains("UNREAD") }
     var senderName: String { from.split(separator: "<").first.map(String.init)?.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\"", with: "") ?? from }
+    var recipientNames: String {
+        let value = to.isEmpty ? (cc.isEmpty ? bcc ?? "" : cc) : to
+        var recipients: [String] = [], current = "", quoted = false, inAddress = false
+        for character in value {
+            if character == "\"" { quoted.toggle() }
+            if !quoted && character == "<" { inAddress = true }
+            if !quoted && character == ">" { inAddress = false }
+            if character == "," && !quoted && !inAddress { recipients.append(current); current = "" }
+            else { current.append(character) }
+        }
+        recipients.append(current)
+        let names = recipients.map { recipient -> String in
+            let clean = recipient.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = clean.split(separator: "<", omittingEmptySubsequences: false).first.map(String.init)?.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\"")) ?? ""
+            return name.isEmpty ? Self.address(clean) : name
+        }.filter { !$0.isEmpty }
+        return names.isEmpty ? "No recipient" : names.joined(separator: ", ")
+    }
     var senderAddress: String { Self.address(from) }
     static func address(_ value: String) -> String {
         if let start = value.firstIndex(of: "<"), let end = value[start...].firstIndex(of: ">") { return String(value[value.index(after: start)..<end]) }
