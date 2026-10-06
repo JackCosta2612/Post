@@ -92,7 +92,7 @@ struct MailFolder: Codable, Identifiable, Equatable {
     func contains(_ message: MailMessage) -> Bool {
         switch id {
         case "primary": return message.labels.contains("INBOX") && message.labels.contains("CATEGORY_PERSONAL")
-        case "all": return !message.labels.contains("TRASH") && !message.labels.contains("SPAM") && !message.labels.contains("DRAFT")
+        case "all": return message.labels.isDisjoint(with: ["TRASH", "SPAM", "DRAFT", "SENT"])
         default: return message.labels.contains(id)
         }
     }
@@ -102,7 +102,7 @@ struct MailFolder: Codable, Identifiable, Equatable {
         .init(id: "rejections", name: "Rejections", icon: "xmark.circle", query: "label:Rejections", isCustom: true),
         .init(id: "CATEGORY_PROMOTIONS", name: "Promotions", icon: "tag", query: "category:promotions"),
         .init(id: "newsletters", name: "Newsletters", icon: "newspaper", query: "label:Newsletters", isCustom: true),
-        .init(id: "all", name: "All mail", icon: "envelope", query: "-in:trash -in:spam -in:drafts"),
+        .init(id: "all", name: "All mail", icon: "envelope", query: "-in:trash -in:spam -in:drafts -in:sent"),
         .init(id: "STARRED", name: "Starred", icon: "star", query: "is:starred"),
         .init(id: "SENT", name: "Sent", icon: "paperplane", query: "in:sent"),
         .init(id: "DRAFT", name: "Drafts", icon: "square.and.pencil", query: "in:drafts"),

@@ -57,6 +57,14 @@ struct BehaviorTests {
         let retainedDownload = try Data(contentsOf: firstDownload)
         check(retainedDownload == Data("first".utf8), "Quick downloads do not overwrite existing files")
         let recovery = MailStore(directory: directory.appendingPathComponent("Recovery"))
+        var received = recovery.messages[0]
+        received.labels = ["INBOX"]; received.threadID = "all-mail-conversation"
+        var sent = received; sent.id = "sent-reply"; sent.labels = ["SENT"]
+        recovery.messages = [received, sent]; recovery.folderID = "all"; recovery.selectedID = received.id
+        check(recovery.visibleMessages.map(\.id) == [received.id], "All mail excludes sent messages from list")
+        check(recovery.threadMessages.count == 2, "All mail conversation retains sent replies")
+        check(recovery.activeFolderQuery.contains("-in:sent"), "All mail server query excludes sent messages")
+        recovery.folderID = "primary"
         var notificationMail = recovery.messages[0]
         notificationMail.labels = ["INBOX", "UNREAD", "CATEGORY_PROMOTIONS"]
         check(!recovery.notificationMatches(notificationMail), "Primary notifications exclude Promotions")

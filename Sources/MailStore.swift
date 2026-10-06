@@ -119,7 +119,7 @@ final class MailStore: ObservableObject {
     var awaitingFolderList: Bool { !isSearching && connected && folderSnapshots[folderCacheKey] == nil }
     @Published var unreadFolders: Set<String> = [] { didSet { cachedVisibleMessages = nil } }
     var unreadOnly: Bool { unreadFolders.contains(folderID) }
-    var activeFolderQuery: String { (folderID == "primary" ? primaryQuery : folder.query) + (unreadOnly ? " is:unread" : "") }
+    var activeFolderQuery: String { (folderID == "primary" ? primaryQuery : (folderID == "all" ? MailFolder.defaults.first { $0.id == "all" }!.query : folder.query)) + (unreadOnly ? " is:unread" : "") }
     var folderCacheKey: String { folder.id + "|" + activeFolderQuery }
     var sectionCount: Int { unreadOnly ? folder.unreadCount : (folderID == "DRAFT" ? max(folder.totalCount, drafts.count) : folder.totalCount) }
     func toggleUnreadFilter() {
@@ -521,8 +521,8 @@ final class MailStore: ObservableObject {
                 // Composite views count messages in their own query, rather than a category's archived mail.
                 let primaryUnread = try await gmail.count(query: primaryQuery + " is:unread")
                 let primaryTotal = try await gmail.count(query: primaryQuery)
-                let allUnread = try await gmail.count(query: "-in:trash -in:spam -in:drafts is:unread")
-                let allTotal = try await gmail.count(query: "-in:trash -in:spam -in:drafts")
+                let allUnread = try await gmail.count(query: "-in:trash -in:spam -in:drafts -in:sent is:unread")
+                let allTotal = try await gmail.count(query: "-in:trash -in:spam -in:drafts -in:sent")
                 guard !Task.isCancelled, folderID == viewID, folderCacheKey == cacheKey, refreshGeneration == generation else { return }
                 var countedFolders = folders
                 if let i = countedFolders.firstIndex(where: { $0.id == "primary" }) { countedFolders[i].unreadCount = primaryUnread; countedFolders[i].totalCount = primaryTotal }
