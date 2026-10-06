@@ -773,16 +773,52 @@ struct LabelPicker: View {
     @ObservedObject private var palette = PostPalette.shared
     @EnvironmentObject var store: MailStore
     @LocalState private var labelAndArchive = true
+    @LocalState private var highlighted: String?
+    @LocalState private var keyMonitor: Any?
+    private var choices: [MailFolder] { store.folders.filter { $0.isCustom || $0.id == "CATEGORY_PROMOTIONS" } }
+    private func apply(_ folder: MailFolder) {
+        let targets = store.messages.filter { store.actionIDs.contains($0.id) }
+        let applied = !targets.isEmpty && targets.allSatisfy { $0.labels.contains(folder.id) }
+        if applied { store.actOnSelected(add: [], remove: [folder.id]) }
+        else { store.actOnSelected(add: [folder.id], remove: labelAndArchive ? ["INBOX"] : [], advance: labelAndArchive) }
+        store.showLabels = false
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack { Text("Apply label").font(PostStyle.font(size: 20, weight: .bold)); Spacer(); Button("Done") { store.showLabels = false } }
             Toggle("Skip the inbox when applying a label", isOn: $labelAndArchive).font(PostStyle.font(size: 12))
-            ScrollView { VStack(spacing: 5) { ForEach(store.folders.filter(\.isCustom)) { folder in
-                let targets = store.messages.filter { store.actionIDs.contains($0.id) }; let applied = !targets.isEmpty && targets.allSatisfy { $0.labels.contains(folder.id) }
-                Button { if applied { store.actOnSelected(add: [], remove: [folder.id]) } else { store.actOnSelected(add: [folder.id], remove: labelAndArchive ? ["INBOX"] : [], advance: labelAndArchive) }; store.showLabels = false } label: { HStack { Image(systemName: folder.icon.replacingOccurrences(of: "circle", with: "square")); Text(folder.name); Spacer(); if applied { Image(systemName: "checkmark") } }.padding(11).background(PostStyle.subtle, in: RoundedRectangle(cornerRadius: 6)) }.buttonStyle(PostButtonStyle())
-            } } }
-            if store.folders.filter(\.isCustom).isEmpty { Text("Create a label using the + button in the sidebar.").foregroundStyle(.secondary) }
+            ScrollViewReader { proxy in
+                ScrollView { VStack(spacing: 5) { ForEach(choices) { folder in
+                    let targets = store.messages.filter { store.actionIDs.contains($0.id) }
+                    let applied = !targets.isEmpty && targets.allSatisfy { $0.labels.contains(folder.id) }
+                    Button { apply(folder) } label: {
+                        HStack { Image(systemName: folder.icon.replacingOccurrences(of: "circle", with: "square")); Text(folder.name); Spacer(); if applied { Image(systemName: "checkmark") } }
+                            .padding(11).background(highlighted == folder.id ? PostStyle.accent.opacity(0.14) : PostStyle.subtle, in: RoundedRectangle(cornerRadius: 6))
+                    }.buttonStyle(PostButtonStyle()).id(folder.id)
+                } } }
+                .onChange(of: highlighted) { _, value in if let value { proxy.scrollTo(value) } }
+            }
+            if choices.isEmpty { Text("Create a label using the + button in the sidebar.").foregroundStyle(.secondary) }
         }.padding(24).frame(width: 430, height: 360)
+        .onAppear {
+            highlighted = choices.first?.id
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                guard store.showLabels, event.modifierFlags.intersection([.command, .option, .control]).isEmpty else { return event }
+                switch event.keyCode {
+                case 125, 126:
+                    guard !choices.isEmpty else { return nil }
+                    let index = choices.firstIndex { $0.id == highlighted } ?? 0
+                    highlighted = choices[min(max(index + (event.keyCode == 125 ? 1 : -1), 0), choices.count - 1)].id
+                    return nil
+                case 36, 76:
+                    if let folder = choices.first(where: { $0.id == highlighted }) { apply(folder) }
+                    return nil
+                case 53: store.showLabels = false; return nil
+                default: return event
+                }
+            }
+        }
+        .onDisappear { if let keyMonitor { NSEvent.removeMonitor(keyMonitor); self.keyMonitor = nil } }
     }
 }
 
