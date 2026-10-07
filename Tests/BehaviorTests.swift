@@ -64,6 +64,11 @@ struct BehaviorTests {
         check(recovery.visibleMessages.map(\.id) == [received.id], "All mail excludes sent messages from list")
         check(recovery.threadMessages.count == 2, "All mail conversation retains sent replies")
         check(recovery.activeFolderQuery.contains("-in:sent"), "All mail server query excludes sent messages")
+        recovery.folders.append(.init(id: "newsletter-test", name: "Newsletters", icon: "tag", query: "label:Newsletters", isCustom: true))
+        recovery.folderID = "newsletter-test"
+        check(recovery.activeFolderQuery == "label:Newsletters -in:trash -in:spam", "Label pages exclude hidden trash and spam before pagination")
+        recovery.folderID = "TRASH"
+        check(recovery.activeFolderQuery == "in:trash", "Trash remains queryable")
         recovery.folderID = "primary"
         var notificationMail = recovery.messages[0]
         notificationMail.labels = ["INBOX", "UNREAD", "CATEGORY_PROMOTIONS"]

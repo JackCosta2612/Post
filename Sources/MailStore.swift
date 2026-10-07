@@ -119,7 +119,13 @@ final class MailStore: ObservableObject {
     var awaitingFolderList: Bool { !isSearching && connected && folderSnapshots[folderCacheKey] == nil }
     @Published var unreadFolders: Set<String> = [] { didSet { cachedVisibleMessages = nil } }
     var unreadOnly: Bool { unreadFolders.contains(folderID) }
-    var activeFolderQuery: String { (folderID == "primary" ? primaryQuery : (folderID == "all" ? MailFolder.defaults.first { $0.id == "all" }!.query : folder.query)) + (unreadOnly ? " is:unread" : "") }
+    var activeFolderQuery: String {
+        var query = folderID == "primary" ? primaryQuery : (folderID == "all" ? MailFolder.defaults.first { $0.id == "all" }!.query : folder.query)
+        if folder.isCustom || ["CATEGORY_PROMOTIONS", "STARRED", "SENT"].contains(folderID) {
+            query += " -in:trash -in:spam"
+        }
+        return query + (unreadOnly ? " is:unread" : "")
+    }
     var folderCacheKey: String { folder.id + "|" + activeFolderQuery }
     var sectionCount: Int { unreadOnly ? folder.unreadCount : (folderID == "DRAFT" ? max(folder.totalCount, drafts.count) : folder.totalCount) }
     func toggleUnreadFilter() {
