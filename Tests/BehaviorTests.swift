@@ -164,6 +164,19 @@ struct BehaviorTests {
         for index in 0..<2 { var example = confirmation; example.id = "repeat-\(index)"; repeated.learn(example, target: "confirmations") }
         check(repeated.prediction(confirmation, allowed: ["confirmations"]) == "confirmations", "Two distinct matching sender corrections establish a content pattern")
         check(repeated.prediction(uncertain, allowed: ["confirmations"]) == nil, "Repeated sender still requires matching content")
+        var newsletter = LabelLearning()
+        for (index, story) in ["Election protests parliament", "Astronomy physics research", "Chemistry prize scientists"].enumerated() {
+            var example = confirmation; example.id = "daily-\(index)"; example.from = "Daily <daily@example.com>"
+            example.subject = "The Daily Ground October \(index)"; example.body = story
+            newsletter.learn(example, target: "newsletters")
+        }
+        var daily = confirmation; daily.id = "next-daily"; daily.from = "Daily <daily@example.com>"
+        daily.subject = "The Daily Ground November 8"; daily.body = "Trade tariffs economy markets"
+        check(newsletter.prediction(daily, allowed: ["newsletters"]) == "newsletters", "Recurring subject series sorts newsletters despite changing stories")
+        var accountNotice = daily; accountNotice.subject = "Reset your account password"
+        check(newsletter.prediction(accountNotice, allowed: ["newsletters"]) == nil, "Recurring newsletter pattern does not capture account notices")
+        var correction = daily; correction.id = "keep-primary"; newsletter.learn(correction, target: LabelLearning.primary)
+        check(newsletter.prediction(daily, allowed: ["newsletters"]) == nil, "Primary correction blocks recurring sender fallback")
         var ambiguous = learner
         for index in 0..<3 { var similar = confirmation; similar.id = "ambiguous-\(index)"; ambiguous.learn(similar, target: "rejections") }
         check(ambiguous.prediction(confirmation, allowed: ["confirmations", "rejections"]) == nil, "Conflicting label examples require manual handling")

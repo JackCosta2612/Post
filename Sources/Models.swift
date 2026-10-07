@@ -455,6 +455,15 @@ struct LabelLearning: Codable {
         guard query.count >= 3 else { return nil }
         let usable = examples.filter { allowed.contains($0.target) || $0.target == Self.primary }
         guard !usable.isEmpty else { return nil }
+        // Recurring newsletters change their stories while retaining a subject series.
+        // Only use that pattern after three distinct corrections with no sender conflicts.
+        let senderHistory = examples.filter { $0.id != message.id && $0.sender == message.senderAddress.lowercased() }
+        if senderHistory.count >= 3, let target = senderHistory.first?.target,
+           target != Self.primary, allowed.contains(target), senderHistory.allSatisfy({ $0.target == target }) {
+            let subjectWords = Set(query.filter { $0.value == 4 }.map(\.key))
+            let recurring = subjectWords.filter { word in senderHistory.filter { $0.terms[word] == 4 }.count >= 3 }
+            if recurring.count >= 2 { return target }
+        }
         let groups = Dictionary(grouping: usable, by: \.target)
         // Terms repeated across different labels carry less evidence than distinctive content.
         let prevalence = groups.values.reduce(into: [String: Int]()) { counts, values in
