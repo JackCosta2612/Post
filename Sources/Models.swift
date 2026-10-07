@@ -468,17 +468,22 @@ struct LabelLearning: Codable {
             let content = total > 0 ? 2 * shared / total : 0
             return min(1, content + (content >= 0.55 && example.sender == message.senderAddress.lowercased() ? 0.05 : 0))
         }
-        var ranked: [(String, Double, Int)] = []
+        var ranked: [(String, Double, Int, Bool)] = []
         for (target, values) in groups {
-            let scores = values.filter { $0.id != message.id }.map(score).sorted(by: >)
-            let neighbors = Array(scores.prefix(3))
+            let otherExamples = values.filter { $0.id != message.id }
+            let senderScores = otherExamples.filter { $0.sender == message.senderAddress.lowercased() }.map(score).sorted(by: >)
+            // Two distinct, closely matching corrections from this sender are enough.
+            // Content still has to agree; sender-only rules would mix interviews and rejections.
+            let repeatedSender = senderScores.count >= 2 && senderScores[1] >= 0.75
+            let scores = otherExamples.map(score).sorted(by: >)
+            let neighbors = Array((repeatedSender ? senderScores : scores).prefix(repeatedSender ? 2 : 3))
             let sum: Double = neighbors.reduce(0.0) { $0 + $1 }
             let mean: Double = neighbors.isEmpty ? 0.0 : sum / Double(neighbors.count)
             let strong = neighbors.filter { $0 >= 0.65 }.count
-            ranked.append((target, mean, strong))
+            ranked.append((target, mean, strong, repeatedSender))
         }
         ranked.sort { $0.1 == $1.1 ? $0.0 < $1.0 : $0.1 > $1.1 }
-        guard let best = ranked.first, best.0 != Self.primary, best.2 >= 3, best.1 >= 0.72,
+        guard let best = ranked.first, best.0 != Self.primary, (best.2 >= 3 || best.3), best.1 >= 0.72,
               best.1 - (ranked.dropFirst().first?.1 ?? 0) >= 0.15 else { return nil }
         return best.0
     }

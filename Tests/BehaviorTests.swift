@@ -160,6 +160,10 @@ struct BehaviorTests {
         check(learner.prediction(confirmation, allowed: ["rejections"]) == nil, "Excluded label cannot be an automatic destination")
         var sparse = LabelLearning(); sparse.learn(confirmation, target: "confirmations"); sparse.learn(confirmation, target: "confirmations")
         check(sparse.examples.count == 1 && sparse.prediction(confirmation, allowed: ["confirmations"]) == nil, "Repeated moves of one message do not manufacture training evidence")
+        var repeated = LabelLearning()
+        for index in 0..<2 { var example = confirmation; example.id = "repeat-\(index)"; repeated.learn(example, target: "confirmations") }
+        check(repeated.prediction(confirmation, allowed: ["confirmations"]) == "confirmations", "Two distinct matching sender corrections establish a content pattern")
+        check(repeated.prediction(uncertain, allowed: ["confirmations"]) == nil, "Repeated sender still requires matching content")
         var ambiguous = learner
         for index in 0..<3 { var similar = confirmation; similar.id = "ambiguous-\(index)"; ambiguous.learn(similar, target: "rejections") }
         check(ambiguous.prediction(confirmation, allowed: ["confirmations", "rejections"]) == nil, "Conflicting label examples require manual handling")

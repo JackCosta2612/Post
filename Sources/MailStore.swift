@@ -536,9 +536,10 @@ final class MailStore: ObservableObject {
                 if labelRevision == countRevision && pending.isEmpty { folders = countedFolders }
                 if folderID == "DRAFT" { await loadDrafts() }
             }
-            if !more, let previousSync = lastSync {
-                sortNewMail(messages.filter { !oldIDs.contains($0.id) && $0.date > previousSync })
-            }
+            // Revisit downloaded inbox mail after learning improves, including mail
+            // already cached or discovered on an older page. Corrections to Primary
+            // remain negative training evidence and automatic moves never train themselves.
+            sortNewMail(messages.filter { $0.labels.contains("INBOX") })
             if preferences.notifications && !more && lastSync != nil {
                 let new = arrivals.compactMap { item in messages.first { $0.id == item.id && notificationMatches($0) } } + incoming.filter { message in !oldIDs.contains(message.id) && notificationMatches(messages.first { $0.id == message.id } ?? message) && message.date > (lastSync ?? Date()) && !arrivals.contains(where: { $0.id == message.id }) }
                 if let first = new.first { notify(first, count: new.count) }
