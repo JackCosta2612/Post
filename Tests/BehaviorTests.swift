@@ -173,8 +173,11 @@ struct BehaviorTests {
         var daily = confirmation; daily.id = "next-daily"; daily.from = "Daily <daily@example.com>"
         daily.subject = "The Daily Ground November 8"; daily.body = "Trade tariffs economy markets"
         check(newsletter.prediction(daily, allowed: ["newsletters"]) == "newsletters", "Recurring subject series sorts newsletters despite changing stories")
-        var accountNotice = daily; accountNotice.subject = "Reset your account password"
-        check(newsletter.prediction(accountNotice, allowed: ["newsletters"]) == nil, "Recurring newsletter pattern does not capture account notices")
+        var accountNotice = daily; accountNotice.from = "Accounts <accounts@example.com>"; accountNotice.subject = "Reset your account password"
+        check(newsletter.prediction(accountNotice, allowed: ["newsletters"]) == nil, "Exact sender preference does not capture other addresses")
+        var newTopic = daily; newTopic.subject = "Markets and technology this week"; newTopic.body = "Innovation investment semiconductor policy"
+        check(newsletter.prediction(newTopic, allowed: ["newsletters"]) == "newsletters", "Consistent sender corrections sort entirely new newsletter topics")
+        check(newsletter.prediction(newTopic, allowed: ["promotions"]) == nil, "Sender preference respects allowed destinations")
         var correction = daily; correction.id = "keep-primary"; newsletter.learn(correction, target: LabelLearning.primary)
         check(newsletter.prediction(daily, allowed: ["newsletters"]) == nil, "Primary correction blocks recurring sender fallback")
         var ambiguous = learner
