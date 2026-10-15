@@ -19,6 +19,13 @@ final class PostApplication: NSApplication {
 }
 
 @main
+struct PostMain {
+    static func main() {
+        _ = PostApplication.shared
+        PostApp.main()
+    }
+}
+
 struct PostApp: App {
     @StateObject private var updates = PostUpdates.shared
     @StateObject private var store = MailStore()
