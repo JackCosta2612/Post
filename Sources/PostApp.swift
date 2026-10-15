@@ -2,6 +2,26 @@ import SwiftUI
 import AppKit
 import UserNotifications
 
+// Standard AppKit selection commands also arrive through accessibility and
+// keyboard utilities, not only as the keyDown events monitored by Post.
+@MainActor
+final class MailListResponder: NSResponder {
+    weak var store: MailStore?
+    override var acceptsFirstResponder: Bool { true }
+    override func moveUpAndModifySelection(_ sender: Any?) { store?.extendNavigation(-1) }
+    override func moveDownAndModifySelection(_ sender: Any?) { store?.extendNavigation(1) }
+    override func moveUp(_ sender: Any?) { store?.perform("previous") }
+    override func moveDown(_ sender: Any?) { store?.perform("next") }
+    override func keyDown(with event: NSEvent) {
+        if [125, 126].contains(event.keyCode), event.modifierFlags.intersection([.command, .option, .control]).isEmpty {
+            if event.modifierFlags.contains(.shift) { store?.extendNavigation(event.keyCode == 125 ? 1 : -1) }
+            else { store?.perform(event.keyCode == 125 ? "next" : "previous") }
+            return
+        }
+        super.keyDown(with: event)
+    }
+}
+
 // Handle range selection before AppKit's menu and responder dispatch.
 @objc(PostApplication)
 final class PostApplication: NSApplication {
@@ -86,6 +106,7 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
     weak var store: MailStore?
     private var monitor: Any?
     private var flagsMonitor: Any?
+    private let listResponder = MailListResponder()
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Let macOS select the catalog's light, dark, and Liquid Glass variants.
         // Assigning a static NSImage here overrides that system appearance handling.
@@ -99,7 +120,12 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
         NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateCommandHints(false) } }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in guard let self else { return event }; return self.handle(event) }
     }
-    func connect(_ store: MailStore) { self.store = store; PostApplication.mailDelegate = self }
+    func connect(_ store: MailStore) { self.store = store; listResponder.store = store; PostApplication.mailDelegate = self }
+    func focusMessageList() {
+        guard let window = NSApp.keyWindow else { return }
+        listResponder.nextResponder = window
+        window.makeFirstResponder(listResponder)
+    }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         Task { @MainActor in
             let isTest = notification.request.content.userInfo["test"] as? Bool == true
@@ -136,6 +162,7 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
               !shortcut.command, !shortcut.option, ["up", "down"].contains(shortcut.key),
               let window = NSApp.keyWindow, event.window === window,
               !(window.firstResponder is NSTextView), !(window.firstResponder is NSTextField) else { return false }
+        focusMessageList()
         store.extendNavigation(shortcut.key == "down" ? 1 : -1)
         return true
     }

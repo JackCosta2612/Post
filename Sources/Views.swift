@@ -279,7 +279,7 @@ struct MailWindow: View {
                         ScrollView {
                             LazyVStack(spacing: 6) {
                                 ForEach(store.drafts) { draft in
-                                    Button { NSApp.keyWindow?.makeFirstResponder(nil); let flags = NSApp.currentEvent?.modifierFlags ?? []; store.clickMessage(draft.id, shift: flags.contains(.shift), command: flags.contains(.command)) } label: {
+                                    Button { PostApplication.mailDelegate?.focusMessageList(); let flags = NSApp.currentEvent?.modifierFlags ?? []; store.clickMessage(draft.id, shift: flags.contains(.shift), command: flags.contains(.command)) } label: {
                                         VStack(alignment: .leading, spacing: 6) {
                                             HStack { Text(draft.to.isEmpty ? "No recipient" : draft.to).font(PostStyle.font(size: store.preferences.listSize ?? 14, weight: .medium)).lineLimit(1); Spacer(); Text(draft.updated.formatted(date: .omitted, time: .shortened)).font(PostStyle.font(size: 10)).foregroundStyle(.secondary) }
                                             Text(draft.subject.isEmpty ? "Untitled draft" : draft.subject).font(PostStyle.font(size: (store.preferences.listSize ?? 14) - 1.5)).lineLimit(1)
@@ -336,7 +336,7 @@ struct MessageRow: View {
     @EnvironmentObject var store: MailStore
     let message: MailMessage
     var body: some View {
-        Button { NSApp.keyWindow?.makeFirstResponder(nil); let flags = NSApp.currentEvent?.modifierFlags ?? []; store.clickMessage(message.id, shift: flags.contains(.shift), command: flags.contains(.command)) } label: {
+        Button { PostApplication.mailDelegate?.focusMessageList(); let flags = NSApp.currentEvent?.modifierFlags ?? []; store.clickMessage(message.id, shift: flags.contains(.shift), command: flags.contains(.command)) } label: {
             HStack(alignment: .top, spacing: 11) {
                 RoundedRectangle(cornerRadius: 2).fill(message.unread ? PostStyle.accent : .clear).frame(width: 7, height: 7).padding(.top, 6)
                 VStack(alignment: .leading, spacing: 5) {
