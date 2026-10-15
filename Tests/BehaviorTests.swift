@@ -150,6 +150,14 @@ struct BehaviorTests {
         rejection.body = "Unfortunately we cannot proceed with your application. Other candidates more closely match this vacancy. We wish you success with your job search."
         var interview = confirmation; interview.subject = "Interview invitation for business analyst"
         interview.body = "We are pleased to invite you to an interview. Please choose a time for a meeting with the hiring manager and confirm your availability."
+        confirmation.id = "copy-confirmation"; rejection.id = "copy-rejection"
+        learningStore.messages = [confirmation, rejection]
+        learningStore.select(confirmation.id)
+        check(learningStore.selectedMessageCopyText.contains(confirmation.body), "Copy selected message includes its body")
+        learningStore.extendSelection(to: rejection.id)
+        check(learningStore.selectedMessageCopyText.contains(rejection.subject), "Copy message range includes each selected email")
+        learningStore.select(nil)
+        check(learningStore.selectedMessageCopyText.isEmpty, "Copy with no selection is a silent no-op")
         var learner = LabelLearning()
         for index in 0..<3 {
             confirmation.id = "confirmation-\(index)"; learner.learn(confirmation, target: "confirmations")

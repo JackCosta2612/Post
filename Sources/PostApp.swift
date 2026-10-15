@@ -12,10 +12,21 @@ final class MailListResponder: NSResponder {
     override func moveDownAndModifySelection(_ sender: Any?) { store?.extendNavigation(1) }
     override func moveUp(_ sender: Any?) { store?.perform("previous") }
     override func moveDown(_ sender: Any?) { store?.perform("next") }
+    @objc func copy(_ sender: Any?) {
+        guard let store else { return }
+        let text = store.selectedMessageCopyText
+        guard !text.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
     override func keyDown(with event: NSEvent) {
         if [125, 126].contains(event.keyCode), event.modifierFlags.intersection([.command, .option, .control]).isEmpty {
             if event.modifierFlags.contains(.shift) { store?.extendNavigation(event.keyCode == 125 ? 1 : -1) }
             else { store?.perform(event.keyCode == 125 ? "next" : "previous") }
+            return
+        }
+        if event.keyCode == 8, event.modifierFlags.intersection([.command, .option, .control, .shift]) == .command {
+            copy(nil)
             return
         }
         super.keyDown(with: event)

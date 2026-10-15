@@ -391,6 +391,13 @@ final class MailStore: ObservableObject {
     var selectionList: [String] { viewingDrafts ? drafts.map(\.id) : visibleMessages.map(\.id) }
     var selectionCursor: String? { viewingDrafts ? (selectedDraftID ?? selectedID) : selectedID }
     var actionIDs: Set<String> { bulkMode ? bulkIDs : Set(selectionCursor.map { [$0] } ?? []) }
+    var selectedMessageCopyText: String {
+        let ids = actionIDs
+        return selectionList.filter { ids.contains($0) }.compactMap { id -> String? in
+            guard let message = messages.first(where: { $0.id == id }) else { return nil }
+            return "From: \(message.from)\nTo: \(message.to)\nSubject: \(message.subject)\n\n\(message.body)"
+        }.joined(separator: "\n\n--------------------\n\n")
+    }
     func clickMessage(_ id: String, shift: Bool = false, command: Bool = false) {
         guard selectionList.contains(id) else { return }
         if shift { extendSelection(to: id); return }
