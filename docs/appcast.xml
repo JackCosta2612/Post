@@ -3,6 +3,22 @@
     <channel>
         <title>Post</title>
         <item>
+            <title>0.2.9</title>
+            <pubDate>Thu, 15 Oct 2026 20:40:30 +0200</pubDate>
+            <sparkle:version>69</sparkle:version>
+            <sparkle:shortVersionString>0.2.9</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[# Post 0.2.9
+
+- Original email formatting is preserved by default, including sender fonts, signatures, body colors and image dimensions.
+- Reading settings offer independent custom font and app-color overrides.
+- Shift+Arrow selection releases list focus to prevent macOS error sounds.
+- Automatic sorting learns consistent sender destinations even when newsletter subjects change.
+- Includes the recent label menu, Sent recipient display, All Mail, and newsletter loading fixes.
+]]></description>
+            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.9/Post-v0.2.9.zip" length="5168774" type="application/octet-stream" sparkle:edSignature="Q7O6Af/n2OLpcOB73vL52tJ+1ZwwNOlpHZACMmFkvcG8R96kKm3109V5FfljecEgK8WPG1+4xZvUwjYGJJ3XCw=="/>
+        </item>
+        <item>
             <title>0.2.8</title>
             <pubDate>Mon, 05 Oct 2026 16:25:58 +0200</pubDate>
             <sparkle:version>57</sparkle:version>
@@ -28,19 +44,6 @@
 - Exclude Spam and Trash from Primary’s server query, matching its message list.
 ]]></description>
             <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.7/Post-v0.2.7.zip" length="5139564" type="application/octet-stream" sparkle:edSignature="Y8S6CCMKsxDy0OWNForjE7eZbN6XmT6tdc//4TdvjdWynqUnkHfyEjUjkn9fC1paXZLfwLRPZWpR2062Oyf+Cg=="/>
-        </item>
-        <item>
-            <title>0.2.7</title>
-            <pubDate>Mon, 05 Oct 2026 11:54:51 +0200</pubDate>
-            <sparkle:version>54</sparkle:version>
-            <sparkle:shortVersionString>0.2.7</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[Post 0.2.7
-
-- Fixed a remaining Primary badge mismatch by excluding Spam and Trash from its server query, matching the message list.
-- Apply explicit Inbox and Unread label constraints to Gmail list and count requests, avoiding archived matches from search.
-]]></description>
-            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.7/Post-v0.2.7.zip" length="5139121" type="application/octet-stream" sparkle:edSignature="6WHa194zXuWrAQ2gEXtMq/J9dPMqOTM+OhXnyjZ9iPq9FT/qWEJV2xZ0+O1VeUkUOf+DLkv/UqV5mfmTlQBmDg=="/>
         </item>
     </channel>
 </rss>

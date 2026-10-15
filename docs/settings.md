@@ -51,11 +51,11 @@ Selected-label notifications match any enabled label. A sender allowlist restric
 
 Quiet hours use your Mac’s local time and can span midnight. Messages received during quiet hours do not produce delayed banners afterward. Post checks for new mail every minute while running; macOS permissions and Focus settings still control delivery.
 
-Interface, composing, and reading fonts have separate controls. Each defaults to SF Pro Display. Interface font is under Appearance; composing and reading fonts are in their respective sections. Existing explicit font choices are preserved.
+Interface, composing, and reading fonts have separate controls. The interface and composer default to SF Pro Display. Reading preserves the sender’s fonts by default; enable “Use custom fonts for email content” to choose a reading font. Interface font is under Appearance; composing and reading fonts are in their respective sections. Existing explicit font choices are preserved.
 
 Dragging a label shows a horizontal insertion line above or below its destination. Message drops still move the mail into the target label.
 
-Email content preserves original colors by default. Enable “Use app colors for email content” under Reading to apply Post’s light/dark recoloring. Hold Command for 1.5 seconds without pressing another key to show label shortcut hints. Composer formatting uses the standard Command-B, Command-I, and Command-U shortcuts; each toggles its formatting.
+Email content preserves the sender’s document, original colors, fonts, and image dimensions by default. Font and color overrides are independent. Enable “Use app colors for email content” under Reading to apply Post’s light/dark recoloring. Hold Command for 1.5 seconds without pressing another key to show label shortcut hints. Composer formatting uses the standard Command-B, Command-I, and Command-U shortcuts; each toggles its formatting.
 
 The header count uses section totals from Gmail. The Unread button beside the section title filters only that section, with independent states for each label. It queries unread mail beyond the initial loaded page.
 
