@@ -79,6 +79,7 @@ final class MailStore: ObservableObject {
     @Published var preferences = MailPreferences() { didSet { cachedVisibleMessages = nil; persist(); NotificationCenter.default.post(name: .init("PostPreferences"), object: preferences) } }
     @Published var account = GmailClient.sampleAccount
     @Published var focusSearch = false
+    @Published var searchIsFocused = false
     @Published var recordingShortcut: String?
     @Published var nextPage: String?
     var pending: [PendingChange] = []
@@ -974,6 +975,14 @@ extension MailStore {
             _ = await deliver(value)
             deliveryInProgress.remove(value.id)
         }
+    }
+    func canUseLabelShortcuts(isEditing: Bool) -> Bool {
+        compose == nil && selectedDraftID == nil && !isEditing && !searchIsFocused && !showSettings && !showLabels && recordingShortcut == nil
+    }
+    func dismissSearch() {
+        search = ""
+        focusSearch = false
+        searchIsFocused = false
     }
     func shortcutLabels() -> [(MailFolder, Shortcut)] {
         sidebarLabels.enumerated().compactMap { index, label in

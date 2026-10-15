@@ -166,6 +166,12 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
             self?.store?.commandHeld = true
         }
     }
+    static var isEditingText: Bool {
+        let responder = NSApp.keyWindow?.firstResponder
+        if let text = responder as? NSTextView { return text.isEditable }
+        if let field = responder as? NSTextField { return field.isEditable }
+        return false
+    }
     func handleRangeSelection(_ event: NSEvent) -> Bool {
         guard Self.promptCount == 0, let store, !store.showSettings, !store.showLabels,
               store.compose == nil, store.selectedDraftID == nil,
@@ -193,10 +199,13 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
             store.composerDismissRequest += 1; return nil
         }
         guard store.compose == nil else { return event }
-        let isEditing = NSApp.keyWindow?.firstResponder is NSTextView || NSApp.keyWindow?.firstResponder is NSTextField
+        let isEditing = Self.isEditingText
+        if shortcut == Shortcut(key: "escape"), store.searchIsFocused {
+            store.dismissSearch(); focusMessageList(); return nil
+        }
         if shortcut == store.preferences.shortcuts["clear"] { NSApp.keyWindow?.makeFirstResponder(nil); store.perform("clear"); return nil }
         if isEditing || store.selectedDraftID != nil { return event }
-        if store.selectedID == nil, store.selectedDraftID == nil,
+        if store.canUseLabelShortcuts(isEditing: isEditing),
            let label = store.shortcutLabels().first(where: { $0.1 == shortcut })?.0 {
             store.chooseFolder(label.id); return nil
         }

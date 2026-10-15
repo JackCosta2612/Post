@@ -514,6 +514,16 @@ struct BehaviorTests {
         check(settingsStore.reorderSidebarLabel("rejections", before: "Newsletters", after: true) == false, "Unknown reorder targets are rejected")
         check(settingsStore.reorderSidebarLabel("rejections", before: "confirmations", after: true), "Hidden labels can be reordered in settings")
         check(settingsStore.orderedSidebarLabels.firstIndex { $0.id == "rejections" }! > settingsStore.orderedSidebarLabels.firstIndex { $0.id == "confirmations" }!, "Reorder supports insertion after target")
+        settingsStore.selectedID = "preview-message"
+        check(settingsStore.canUseLabelShortcuts(isEditing: false), "Label shortcuts work while previewing a message")
+        check(!settingsStore.canUseLabelShortcuts(isEditing: true), "Label shortcuts do not interrupt text editing")
+        settingsStore.newCompose()
+        check(!settingsStore.canUseLabelShortcuts(isEditing: false), "Label shortcuts stay disabled in the composer")
+        settingsStore.compose = nil; settingsStore.search = "newsletter"; settingsStore.searchIsFocused = true
+        check(!settingsStore.canUseLabelShortcuts(isEditing: false), "Focused search blocks label navigation")
+        settingsStore.dismissSearch()
+        check(settingsStore.search.isEmpty && !settingsStore.searchIsFocused && settingsStore.selectedID == "preview-message", "Dismiss search clears and unfocuses it without clearing the preview selection")
+        settingsStore.selectedID = nil
         check(settingsStore.setLabelShortcut("primary", value: Shortcut(key: "0", command: true)), "Label shortcut accepts free Command key")
         check(!settingsStore.setLabelShortcut("primary", value: Shortcut(key: "v", command: true)), "Label shortcut reserves paste")
         var notification = settingsStore.messages[0]; notification.labels = ["UNREAD", "confirmations"]

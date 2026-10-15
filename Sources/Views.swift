@@ -102,6 +102,8 @@ struct MailWindow: View {
         .onChange(of: store.selectionList) { _, _ in store.reconcileBulkSelection() }
         .onChange(of: store.selectedDraftID) { _, _ in searchFocused = false }
         .onChange(of: store.selectedID) { _, _ in searchFocused = false }
+        .onChange(of: searchFocused) { _, value in store.searchIsFocused = value }
+        .onChange(of: store.searchIsFocused) { _, value in if !value { searchFocused = false } }
         .onChange(of: store.focusSearch) { _, value in if value { searchFocused = true; store.focusSearch = false } }
 
     }
@@ -250,6 +252,7 @@ struct MailWindow: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(PostStyle.secondary)
                 TextField("Search mail", text: $store.search).textFieldStyle(.plain).focused($searchFocused)
+                    .onExitCommand { store.dismissSearch(); searchFocused = false; PostApplication.mailDelegate?.focusMessageList() }
                 if store.isSearching {
                     Menu {
                         Picker("Search in", selection: $store.searchScope) {
@@ -315,7 +318,7 @@ struct MailWindow: View {
         if store.preferences.remoteImages, store.preferences.cacheMode == "fast" { for message in store.visibleMessages.prefix(6) { PostImageLoader.shared.prefetch(message.html) } }
     }
     private var showLabelHints: Bool {
-        store.commandHeld && store.selectedID == nil && store.compose == nil && store.selectedDraftID == nil && !searchFocused && !store.showSettings && !(NSApp.keyWindow?.firstResponder is NSTextView) && !(NSApp.keyWindow?.firstResponder is NSTextField)
+        store.commandHeld && store.canUseLabelShortcuts(isEditing: PostDelegate.isEditingText) && !searchFocused
     }
     private var footer: some View {
         HStack(spacing: 15) {
