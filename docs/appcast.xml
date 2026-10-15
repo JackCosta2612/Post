@@ -3,6 +3,19 @@
     <channel>
         <title>Post</title>
         <item>
+            <title>0.2.10</title>
+            <pubDate>Thu, 15 Oct 2026 21:13:36 +0200</pubDate>
+            <sparkle:version>74</sparkle:version>
+            <sparkle:shortVersionString>0.2.10</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[# Post 0.2.10
+
+- Fixes the alert sound during Shift+Arrow selection when clipboard utilities send an additional Copy command.
+- Adds standard Copy handling for selected emails, including multi-selection. Composer and search text keep their normal Copy behavior.
+]]></description>
+            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.10/Post-v0.2.10.zip" length="5183579" type="application/octet-stream" sparkle:edSignature="jPzmlTdlTbFcjRUOn5OeQJ0sG1efv3DCUVslnDYJd/yCbILUAhbG/FnlveBxz1au456pn1toSU3Ttc1dA3djAQ=="/>
+        </item>
+        <item>
             <title>0.2.9</title>
             <pubDate>Thu, 15 Oct 2026 20:40:30 +0200</pubDate>
             <sparkle:version>69</sparkle:version>
@@ -30,20 +43,6 @@
 - Pasted text matches your composer font instead of importing a different font.
 ]]></description>
             <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.8/Post-v0.2.8.zip" length="5145562" type="application/octet-stream" sparkle:edSignature="yLDiTy1JDAjodmwUM4fukwcgBTGZIEfKoJ/Y5D5zV7dvUnihSaUP/si2g0x1WiRDm1RFU7KANWBSicPfmkAOCg=="/>
-        </item>
-        <item>
-            <title>0.2.7</title>
-            <pubDate>Mon, 05 Oct 2026 11:54:51 +0200</pubDate>
-            <sparkle:version>55</sparkle:version>
-            <sparkle:shortVersionString>0.2.7</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[Post 0.2.7
-
-- Fixed unread messages being hidden because Post reused stale cached labels. When a Gmail query conflicts with the cached Inbox or Unread state, Post fetches current label metadata while keeping the downloaded body.
-- Apply explicit Inbox and Unread label constraints to both Gmail lists and counts.
-- Exclude Spam and Trash from Primary’s server query, matching its message list.
-]]></description>
-            <enclosure url="https://github.com/JackCosta2612/Post/releases/download/v0.2.7/Post-v0.2.7.zip" length="5139564" type="application/octet-stream" sparkle:edSignature="Y8S6CCMKsxDy0OWNForjE7eZbN6XmT6tdc//4TdvjdWynqUnkHfyEjUjkn9fC1paXZLfwLRPZWpR2062Oyf+Cg=="/>
         </item>
     </channel>
 </rss>
