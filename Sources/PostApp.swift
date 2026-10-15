@@ -2,6 +2,22 @@ import SwiftUI
 import AppKit
 import UserNotifications
 
+// Handle range selection before AppKit's menu and responder dispatch.
+@objc(PostApplication)
+final class PostApplication: NSApplication {
+    static weak var mailDelegate: PostDelegate?
+    private var rangeKeys = Set<UInt16>()
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyUp, rangeKeys.remove(event.keyCode) != nil { return }
+        if event.type == .keyDown, let delegate = Self.mailDelegate,
+           delegate.handleRangeSelection(event) {
+            rangeKeys.insert(event.keyCode)
+            return
+        }
+        super.sendEvent(event)
+    }
+}
+
 @main
 struct PostApp: App {
     @StateObject private var updates = PostUpdates.shared
@@ -76,7 +92,7 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
         NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateCommandHints(false) } }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in guard let self else { return event }; return self.handle(event) }
     }
-    func connect(_ store: MailStore) { self.store = store }
+    func connect(_ store: MailStore) { self.store = store; PostApplication.mailDelegate = self }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         Task { @MainActor in
             let isTest = notification.request.content.userInfo["test"] as? Bool == true
@@ -106,6 +122,16 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
             self?.store?.commandHeld = true
         }
     }
+    func handleRangeSelection(_ event: NSEvent) -> Bool {
+        guard Self.promptCount == 0, let store, !store.showSettings, !store.showLabels,
+              store.compose == nil, store.selectedDraftID == nil,
+              let shortcut = Shortcut.fromEvent(event), shortcut.shift,
+              !shortcut.command, !shortcut.option, ["up", "down"].contains(shortcut.key),
+              let window = NSApp.keyWindow, event.window === window,
+              !(window.firstResponder is NSTextView), !(window.firstResponder is NSTextField) else { return false }
+        store.extendNavigation(shortcut.key == "down" ? 1 : -1)
+        return true
+    }
     private func handle(_ event: NSEvent) -> NSEvent? {
         if event.modifierFlags.contains(.command) { hintTask?.cancel(); store?.commandHeld = false }
         guard Self.promptCount == 0 else { return event }
@@ -125,12 +151,6 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
         let isEditing = NSApp.keyWindow?.firstResponder is NSTextView || NSApp.keyWindow?.firstResponder is NSTextField
         if shortcut == store.preferences.shortcuts["clear"] { NSApp.keyWindow?.makeFirstResponder(nil); store.perform("clear"); return nil }
         if isEditing || store.selectedDraftID != nil { return event }
-        if shortcut.shift, !shortcut.command, !shortcut.option, ["up", "down"].contains(shortcut.key) {
-            // Release the list/button responder before extending the range. It must
-            // not also interpret Shift+Arrow as an unsupported text command.
-            NSApp.keyWindow?.makeFirstResponder(nil)
-            store.extendNavigation(shortcut.key == "down" ? 1 : -1); return nil
-        }
         if store.selectedID == nil, store.selectedDraftID == nil,
            let label = store.shortcutLabels().first(where: { $0.1 == shortcut })?.0 {
             store.chooseFolder(label.id); return nil

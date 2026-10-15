@@ -27,7 +27,7 @@
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Post contributors. MIT licensed.</string>
 	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
+	<string>PostApplication</string>
 <key>SUFeedURL</key><string>https://raw.githubusercontent.com/JackCosta2612/Post/main/docs/appcast.xml</string>
 <key>SUPublicEDKey</key><string>NmghGZTxFQU2SQuUm1L2FDppiTdVWzGOeRrVTUKKQSY=</string>
 <key>SUEnableAutomaticChecks</key><true/>
