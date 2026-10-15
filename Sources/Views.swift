@@ -1181,60 +1181,45 @@ final class PostImageLoader: NSObject, WKURLSchemeHandler {
     static let shared = PostImageLoader()
     private var mode = "balanced"
     private var root: URL?
-    private var cache = URLCache(memoryCapacity: 32 * 1024 * 1024, diskCapacity: 128 * 1024 * 1024, diskPath: "Post-RemoteImages")
-    private lazy var session: URLSession = makeSession()
-    private var downloads: [URL: URLSessionDataTask] = [:]
-    private var waiting: [URL: [ObjectIdentifier: WKURLSchemeTask]] = [:]
-    private func makeSession() -> URLSession {
-        let config = URLSessionConfiguration.default
-        config.urlCache = cache; config.httpCookieStorage = nil; config.httpShouldSetCookies = false
-        config.timeoutIntervalForRequest = 20; config.httpMaximumConnectionsPerHost = 8
-        return URLSession(configuration: config)
-    }
+    private var pipeline = RemoteImagePipeline()
+    private var listeners: [ObjectIdentifier: Task<Void, Never>] = [:]
+    private var warming: [URL: Task<Void, Never>] = [:]
     func configure(mode: String, directory: URL) {
         guard self.mode != mode || root != directory else { return }
         self.mode = mode; root = directory
-        cache = URLCache(memoryCapacity: (mode == "fast" ? 128 : 32) * 1024 * 1024, diskCapacity: (mode == "fast" ? 1024 : 128) * 1024 * 1024, directory: directory.appendingPathComponent("RemoteImages"))
-        session.finishTasksAndInvalidate(); session = makeSession()
+        for task in warming.values { task.cancel() }; warming.removeAll()
+        pipeline = RemoteImagePipeline(mode: mode, directory: directory)
     }
-    func clear() { cache.removeAllCachedResponses() }
+    func clear() { let pipeline = pipeline; Task { await pipeline.clear() } }
     func prefetch(_ html: String) {
-        guard mode == "fast", let regex = try? NSRegularExpression(pattern: #"(?:src|background)=["'](https?://[^"']+)"#, options: [.caseInsensitive]) else { return }
-        let text = html as NSString
-        for match in regex.matches(in: html, range: NSRange(location: 0, length: text.length)).prefix(12) {
-            guard let url = URL(string: text.substring(with: match.range(at: 1)).replacingOccurrences(of: "&amp;", with: "&")) else { continue }
-            fetch(url)
-        }
-    }
-    private func fetch(_ original: URL) {
-        guard downloads[original] == nil else { return }
-        var request = URLRequest(url: original)
-        request.cachePolicy = mode == "fast" ? .returnCacheDataElseLoad : .useProtocolCachePolicy
-        downloads[original] = session.dataTask(with: request) { [weak self] data, response, error in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.downloads.removeValue(forKey: original)
-                let listeners = self.waiting.removeValue(forKey: original) ?? [:]
-                for task in listeners.values {
-                    if let error { task.didFailWithError(error); continue }
-                    guard let data, let response, (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true, let url = task.request.url else { task.didFailWithError(URLError(.badServerResponse)); continue }
-                    task.didReceive(URLResponse(url: url, mimeType: response.mimeType, expectedContentLength: data.count, textEncodingName: response.textEncodingName))
-                    task.didReceive(data); task.didFinish()
-                }
+        guard mode == "fast" else { return }
+        let pipeline = pipeline
+        // Only a small amount of speculative work may compete with visible mail.
+        for url in MessageHTML.remoteImageURLs(html) where warming.count < 2 && warming[url] == nil {
+            warming[url] = Task(priority: .utility) { [weak self] in
+                _ = try? await pipeline.image(url, prefetch: true)
+                self?.warming.removeValue(forKey: url)
             }
         }
-        downloads[original]?.resume()
     }
     func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
         guard let url = task.request.url, let original = MessageHTML.originalImageURL(url) else { task.didFailWithError(URLError(.badURL)); return }
-        waiting[original, default: [:]][ObjectIdentifier(task)] = task
-        fetch(original)
+        let id = ObjectIdentifier(task), pipeline = pipeline
+        listeners[id] = Task { @MainActor [weak self] in
+            do {
+                let image = try await pipeline.image(original)
+                guard !Task.isCancelled else { return }
+                task.didReceive(URLResponse(url: url, mimeType: image.mimeType, expectedContentLength: image.data.count, textEncodingName: nil))
+                task.didReceive(image.data); task.didFinish()
+            } catch {
+                if !Task.isCancelled { task.didFailWithError(error) }
+            }
+            self?.listeners.removeValue(forKey: id)
+        }
     }
     func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {
-        guard let url = task.request.url, let original = MessageHTML.originalImageURL(url) else { return }
-        waiting[original]?.removeValue(forKey: ObjectIdentifier(task))
-        if waiting[original]?.isEmpty == true { waiting.removeValue(forKey: original) }
-        // Keep the shared download alive for nearby messages and the disk cache.
+        listeners.removeValue(forKey: ObjectIdentifier(task))?.cancel()
+        // A shared fetch continues to warm the cache when the reader navigates away.
     }
 }
 

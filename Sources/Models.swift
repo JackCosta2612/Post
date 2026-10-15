@@ -391,25 +391,51 @@ enum MessageHTML {
         }
         return "<!doctype html><html data-post-render='\(generation)'><head>\(head)</head><body>\(html)</body></html>"
     }
+    static func secureImageURL(_ url: URL) -> URL {
+        guard url.scheme?.lowercased() == "http", var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        parts.scheme = "https"
+        if parts.port == 80 { parts.port = nil }
+        return parts.url ?? url
+    }
     static func cachedImageURLs(_ html: String) -> String {
-        // Rewrite image sources and CSS backgrounds, leaving links unchanged.
-        let pattern = #"(?i)(\bsrc\s*=\s*["']|url\(\s*["']?)(https?://[^"'<>\s)]+)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return html }
-        var result = html
-        for match in regex.matches(in: html, range: NSRange(html.startIndex..., in: html)).reversed() {
-            guard let range = Range(match.range(at: 2), in: result) else { continue }
-            let value = String(result[range])
-            result.replaceSubrange(range, with: value.replacingOccurrences(of: "://", with: "/", range: value.range(of: "://")).withImageScheme)
+        func wrap(_ value: String) -> String {
+            let url = value.hasPrefix("//") ? "https:" + value : value
+            guard url.lowercased().hasPrefix("https://") || url.lowercased().hasPrefix("http://") else { return value }
+            let scheme = url.prefix { $0 != ":" }.lowercased()
+            return "post-image://" + scheme + "/" + url.dropFirst(scheme.count + 3)
         }
-        return result
+        func replace(_ source: String, pattern: String, group: Int, transform: (String) -> String) -> String {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators]) else { return source }
+            var result = source
+            for match in regex.matches(in: source, range: NSRange(source.startIndex..., in: source)).reversed() {
+                guard let range = Range(match.range(at: group), in: result) else { continue }
+                result.replaceSubrange(range, with: transform(String(result[range])))
+            }
+            return result
+        }
+        var result = replace(html, pattern: #"\b(?:src|background)\s*=\s*(["'])(.*?)\1"#, group: 2, transform: wrap)
+        result = replace(result, pattern: #"\b(?:src|background)\s*=\s*((?:https?:)?//[^\s>"']+)"#, group: 1, transform: wrap)
+        result = replace(result, pattern: #"\bsrcset\s*=\s*(["'])(.*?)\1"#, group: 2) { value in
+            replace(value, pattern: #"(?:https?:)?//[^\s,]+"#, group: 0, transform: wrap)
+        }
+        return replace(result, pattern: #"url\(\s*["']?((?:https?:)?//[^"')\s]+)"#, group: 1, transform: wrap)
+    }
+    static func remoteImageURLs(_ html: String) -> [URL] {
+        let rewritten = cachedImageURLs(html)
+        guard let regex = try? NSRegularExpression(pattern: #"post-image://[^\s<>"') ,]+"#) else { return [] }
+        var seen = Set<URL>()
+        return regex.matches(in: rewritten, range: NSRange(rewritten.startIndex..., in: rewritten)).compactMap {
+            guard let range = Range($0.range, in: rewritten), let wrapped = URL(string: String(rewritten[range])),
+                  let url = originalImageURL(wrapped), seen.insert(url).inserted else { return nil }
+            return url
+        }
     }
     static func originalImageURL(_ url: URL) -> URL? {
         guard url.scheme == "post-image", let host = url.host, ["https", "http"].contains(host) else { return nil }
         let value = url.absoluteString.replacingOccurrences(of: "post-image://" + host + "/", with: host + "://")
-        return URL(string: value.replacingOccurrences(of: "&amp;", with: "&"))
+        return URL(string: value.replacingOccurrences(of: "&amp;", with: "&")).map(secureImageURL)
     }
 }
-private extension String { var withImageScheme: String { "post-image://" + self } }
 
 struct MailDrag: Codable { var ids: [String]; var source: String }
 

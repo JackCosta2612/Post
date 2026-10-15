@@ -10,3 +10,5 @@ xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path "$BUILD_DIR/m
 "$BUILD_DIR/GmailTests"
 xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path "$BUILD_DIR/module-cache" -sdk "$SDK_PATH" "$PROJECT_DIR/Sources/Updates.swift" "$PROJECT_DIR/Tests/VersionTests.swift" -o "$BUILD_DIR/VersionTests"
 "$BUILD_DIR/VersionTests"
+xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path "$BUILD_DIR/module-cache" -sdk "$SDK_PATH" "$PROJECT_DIR/Sources/Models.swift" "$PROJECT_DIR/Sources/RemoteImages.swift" "$PROJECT_DIR/Tests/ImageTests.swift" -o "$BUILD_DIR/ImageTests"
+"$BUILD_DIR/ImageTests"

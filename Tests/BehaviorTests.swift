@@ -137,6 +137,11 @@ struct BehaviorTests {
         check(remoteSearching.visibleMessages.map(\.id) == ["remote-inbox"], "Switching scope removes previous remote search results")
         remoteSearching.search = ""
         check(remoteSearching.visibleMessages.isEmpty, "Clearing remote search restores authoritative empty folder")
+        let legacyImage = URL(string: "http://cdn.example.com:80/logo.png?width=200&height=100")!
+        check(MessageHTML.secureImageURL(legacyImage).absoluteString == "https://cdn.example.com/logo.png?width=200&height=100", "Legacy image URLs use HTTPS without losing parameters")
+        let wrappedImage = MessageHTML.cachedImageURLs("<img src='http://cdn.example.com/logo.gif?x=1&amp;y=2'><td background='http://cdn.example.com/bg.png'>")
+        check(wrappedImage.contains("background='post-image://http/cdn.example.com/bg.png'"), "Legacy HTML background images use the image loader")
+        check(MessageHTML.originalImageURL(URL(string: "post-image://http/cdn.example.com/logo.gif?x=1&amp;y=2")!)?.absoluteString == "https://cdn.example.com/logo.gif?x=1&y=2", "Image loader upgrades old HTTP links and decodes HTML query separators")
         let originalDocument = "<html><head><style>.signature{font-family:Georgia}img{width:24px}</style></head><body bgcolor='ivory'><img src='cid:logo' width='24' height='24'><span class='signature'>Signature</span></body></html>"
         let viewerDocument = MessageHTML.viewerDocument(originalDocument, head: "<meta name='post-test'>", generation: "test")
         check(viewerDocument.contains("body bgcolor='ivory'") && viewerDocument.contains("font-family:Georgia"), "Original viewer preserves sender body attributes and signature fonts")
