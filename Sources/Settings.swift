@@ -109,12 +109,14 @@ struct SettingsPane: View {
                     .modifier(LabelDropTarget(id: label.id, height: 48, store: store, acceptsMessages: false))
             }
         case "Reading":
+            Text("Original email formatting is preserved by default. Font and color overrides are optional.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
+            Toggle("Use custom fonts for email content", isOn: option(\.customEmailFonts, false))
             Toggle("Use app colors for email content", isOn: option(\.customEmailColors, false))
             Text("Off preserves each email’s original colors and layout.").font(PostStyle.font(size: 12)).foregroundStyle(PostStyle.secondary)
             Toggle("Group messages into conversations", isOn: option(\.groupConversations, true))
             Toggle("Mark opened messages as read", isOn: $store.preferences.markRead)
             Picker("Mark as read after", selection: option(\.readDelay, 0)) { Text("Immediately").tag(0); ForEach([1, 3, 5, 10, 30], id: \.self) { Text("\($0) seconds").tag($0) } }.disabled(!store.preferences.markRead)
-            fontPicker("Reading font", selection: option(\.readingFont, "SF Pro Display"))
+            fontPicker("Reading font", selection: option(\.readingFont, "SF Pro Display")).disabled(store.preferences.customEmailFonts != true)
             Picker("Reading text size", selection: option(\.readingSize, 15)) { ForEach([12.0,14,15,16,18,20,24], id: \.self) { Text("\(Int($0)) pt").tag($0) } }
             Toggle("Load remote images automatically", isOn: $store.preferences.remoteImages)
         case "Composing":

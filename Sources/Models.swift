@@ -145,6 +145,7 @@ struct MailPreferences: Codable {
     var showShortcutHints: Bool? = nil
     var interfaceFont: String? = nil
     var customEmailColors: Bool? = nil
+    var customEmailFonts: Bool? = nil
     var readingFont: String? = nil
     var readingSize: Double? = nil
     var listSize: Double? = nil
@@ -372,6 +373,24 @@ extension MailMessage {
 }
 
 enum MessageHTML {
+    static func viewerDocument(_ html: String, head: String, generation: String) -> String {
+        // Keep the sender's document, including body attributes and style blocks.
+        if let opening = html.range(of: #"<head\b[^>]*>"#, options: [.regularExpression, .caseInsensitive]) {
+            var result = html
+            result.insert(contentsOf: head, at: opening.upperBound)
+            if let root = result.range(of: #"<html\b"#, options: [.regularExpression, .caseInsensitive]) {
+                result.insert(contentsOf: " data-post-render='\(generation)'", at: root.upperBound)
+            }
+            return result
+        }
+        if let opening = html.range(of: #"<html\b[^>]*>"#, options: [.regularExpression, .caseInsensitive]) {
+            var result = html
+            result.insert(contentsOf: "<head>\(head)</head>", at: opening.upperBound)
+            if let root = result.range(of: #"<html\b"#, options: [.regularExpression, .caseInsensitive]) { result.insert(contentsOf: " data-post-render='\(generation)'", at: root.upperBound) }
+            return result
+        }
+        return "<!doctype html><html data-post-render='\(generation)'><head>\(head)</head><body>\(html)</body></html>"
+    }
     static func cachedImageURLs(_ html: String) -> String {
         // Rewrite image sources and CSS backgrounds, leaving links unchanged.
         let pattern = #"(?i)(\bsrc\s*=\s*["']|url\(\s*["']?)(https?://[^"'<>\s)]+)"#

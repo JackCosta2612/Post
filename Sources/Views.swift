@@ -506,7 +506,7 @@ struct ConversationMessage: View {
                 if !allowImages && !store.preferences.remoteImages {
                     HStack { Text("Remote images are blocked").font(PostStyle.font(size: 11)).foregroundStyle(.secondary); Spacer(); Button("Load images") { allowImages = true }.controlSize(.small) }
                 }
-                HTMLMessage(html: message.html, remoteImages: allowImages || store.preferences.remoteImages, originalColors: useOriginalColors, foldQuotes: true, fontName: store.preferences.readingFont ?? "SF Pro Display", fontSize: store.preferences.readingSize ?? 15, onReady: { htmlReady = $0; if $0 { onLayoutReady?() } })
+                HTMLMessage(html: message.html, remoteImages: allowImages || store.preferences.remoteImages, originalColors: useOriginalColors, customFonts: store.preferences.customEmailFonts == true, foldQuotes: true, fontName: store.preferences.readingFont ?? "SF Pro Display", fontSize: store.preferences.readingSize ?? 15, onReady: { htmlReady = $0; if $0 { onLayoutReady?() } })
                     .transaction { $0.animation = nil }.padding(.horizontal, 6).frame(minHeight: 100).clipShape(RoundedRectangle(cornerRadius: 7))
             } else {
                 let parts = MessageQuote.split(message.body)
@@ -569,13 +569,14 @@ struct HTMLMessage: View {
     let html: String
     let remoteImages: Bool
     var originalColors = true
+    var customFonts = false
     var foldQuotes = false
     var fontName = "SF Pro Display"
     var fontSize: Double = 15
     var onReady: ((Bool) -> Void)? = nil
     @LocalState private var height: CGFloat = 100
     var body: some View {
-        HTMLDocument(html: html, remoteImages: remoteImages, originalColors: originalColors, foldQuotes: foldQuotes, fontName: fontName, fontSize: fontSize, onReady: onReady, height: $height)
+        HTMLDocument(html: html, remoteImages: remoteImages, originalColors: originalColors, customFonts: customFonts, foldQuotes: foldQuotes, fontName: fontName, fontSize: fontSize, onReady: onReady, height: $height)
             .frame(height: height)
             .onChange(of: height) { _, _ in onReady?(true) }
             .background(originalColors ? Color.white : Color.clear)
@@ -588,6 +589,7 @@ struct HTMLDocument: NSViewRepresentable {
     let html: String
     let remoteImages: Bool
     var originalColors = true
+    var customFonts = false
     var foldQuotes = false
     var fontName = "SF Pro Display"
     var fontSize: Double = 15
@@ -602,7 +604,7 @@ struct HTMLDocument: NSViewRepresentable {
         for entry in removable { entry.view.stopLoading(); entry.view.configuration.userContentController.removeScriptMessageHandler(forName: "postHeight"); entry.view.configuration.userContentController.removeScriptMessageHandler(forName: "postReady") }
     }
     private static var rendered: [(key: String, view: WKWebView, coordinator: Coordinator)] = []
-    private var renderKey: String { html + String(remoteImages) + String(colorScheme == .dark) + String(originalColors) + String(foldQuotes) + fontName + String(fontSize) }
+    private var renderKey: String { html + String(remoteImages) + String(colorScheme == .dark) + String(originalColors) + String(customFonts) + String(foldQuotes) + fontName + String(fontSize) }
     func makeCoordinator() -> Coordinator {
         if let entry = Self.rendered.first(where: { $0.key == renderKey && $0.view.superview == nil }) { return entry.coordinator }
         return Coordinator()
@@ -725,8 +727,10 @@ struct HTMLDocument: NSViewRepresentable {
         let images = remoteImages ? "post-image: data: cid:" : "data: cid:"
         let renderedHTML = remoteImages ? MessageHTML.cachedImageURLs(html) : html
         let dark = colorScheme == .dark && !originalColors
-        let colors = originalColors ? "" : "body{background:transparent!important;color:\(dark ? "#e5eaf1" : "#242a34")!important}body *{font-family:inherit!important;color:inherit!important;-webkit-text-fill-color:currentColor!important}p,span,td,th,div,li,table,h1,h2,h3,h4,h5,h6{background-color:transparent!important}p,span,td,li{font-size:inherit!important}a,a *{color:\(dark ? "#9ecafa" : "#176edc")!important}"
-        let document = "<!doctype html><html data-post-render='\(generation)'><head><meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; img-src \(images); style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'\"><style>body{background:white;font:\(fontSize)px \(MIMEBuilder.htmlEscape(fontName)),sans-serif;color:#242a34;margin:0;padding:20px 24px;box-sizing:border-box;line-height:1.65;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}a{color:#176edc}html{overflow:hidden}details.post-quote{margin-top:14px}details.post-quote>summary{cursor:pointer;font-size:12px;color:#7d8b9c;user-select:none}details.post-quote[open]>summary{margin-bottom:12px}\(colors)</style></head><body>\(renderedHTML)</body></html>"
+        let colors = originalColors ? "" : "body{background:transparent!important;color:\(dark ? "#e5eaf1" : "#242a34")!important}body *{color:inherit!important;-webkit-text-fill-color:currentColor!important}p,span,td,th,div,li,table,h1,h2,h3,h4,h5,h6{background-color:transparent!important}a,a *{color:\(dark ? "#9ecafa" : "#176edc")!important}"
+        let typography = customFonts ? "body,body *{font-family:\(MIMEBuilder.htmlEscape(fontName)),sans-serif!important;font-size:\(fontSize)px!important;line-height:1.65!important}" : ""
+        let head = "<meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; img-src \(images); style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'\"><style>body{background:white;color:#242a34;margin:0;font-family:-apple-system,sans-serif}html{overflow:hidden}details.post-quote{margin-top:14px}details.post-quote>summary{cursor:pointer;font:12px -apple-system,sans-serif;color:#7d8b9c;user-select:none}details.post-quote[open]>summary{margin-bottom:12px}\(colors)\(typography)</style>"
+        let document = MessageHTML.viewerDocument(renderedHTML, head: head, generation: generation)
         context.coordinator.navigation = view.loadHTMLString(document, baseURL: nil)
     }
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {

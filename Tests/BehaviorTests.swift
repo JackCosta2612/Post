@@ -137,6 +137,11 @@ struct BehaviorTests {
         check(remoteSearching.visibleMessages.map(\.id) == ["remote-inbox"], "Switching scope removes previous remote search results")
         remoteSearching.search = ""
         check(remoteSearching.visibleMessages.isEmpty, "Clearing remote search restores authoritative empty folder")
+        let originalDocument = "<html><head><style>.signature{font-family:Georgia}img{width:24px}</style></head><body bgcolor='ivory'><img src='cid:logo' width='24' height='24'><span class='signature'>Signature</span></body></html>"
+        let viewerDocument = MessageHTML.viewerDocument(originalDocument, head: "<meta name='post-test'>", generation: "test")
+        check(viewerDocument.contains("body bgcolor='ivory'") && viewerDocument.contains("font-family:Georgia"), "Original viewer preserves sender body attributes and signature fonts")
+        check(viewerDocument.contains("width='24' height='24'") && viewerDocument.contains("src='cid:logo'"), "Original viewer preserves inline image dimensions and references")
+        check(viewerDocument.components(separatedBy: "<html").count == 2 && viewerDocument.contains("data-post-render='test'"), "Original HTML is a single document with the render token")
         let learningStore = MailStore(directory: directory.appendingPathComponent("Learning"))
         var confirmation = MailStore.samples()[0]
         confirmation.from = "Recruiting <jobs@example.com>"; confirmation.subject = "Application received for business analyst"

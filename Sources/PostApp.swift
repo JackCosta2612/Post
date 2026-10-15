@@ -126,6 +126,9 @@ final class PostDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCen
         if shortcut == store.preferences.shortcuts["clear"] { NSApp.keyWindow?.makeFirstResponder(nil); store.perform("clear"); return nil }
         if isEditing || store.selectedDraftID != nil { return event }
         if shortcut.shift, !shortcut.command, !shortcut.option, ["up", "down"].contains(shortcut.key) {
+            // Release the list/button responder before extending the range. It must
+            // not also interpret Shift+Arrow as an unsupported text command.
+            NSApp.keyWindow?.makeFirstResponder(nil)
             store.extendNavigation(shortcut.key == "down" ? 1 : -1); return nil
         }
         if store.selectedID == nil, store.selectedDraftID == nil,
