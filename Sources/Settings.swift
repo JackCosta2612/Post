@@ -5,10 +5,39 @@ struct FontChoices {
     static var names: [String] { ["SF Pro Display", "Helvetica Neue", "Arial", "Avenir Next", "Georgia", "Menlo", "Times New Roman"] + NSFontManager.shared.availableFontFamilies.filter { !["SF Pro Display", "Helvetica Neue", "Arial", "Avenir Next", "Georgia", "Menlo", "Times New Roman"].contains($0) }.sorted() }
 }
 struct FlowLabelChips: View {
-    @ObservedObject private var palette = PostPalette.shared
     let labels: [MailFolder]
+    let remove: (MailFolder) -> Void
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 6) { ForEach(labels) { label in Text(label.name).font(PostStyle.font(size: 10, weight: .medium)).foregroundStyle(PostStyle.accent).padding(.horizontal, 8).padding(.vertical, 4).background(PostStyle.selection, in: RoundedRectangle(cornerRadius: 5)) } } }
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(labels) { label in MessageLabelChip(label: label) { remove(label) } }
+            }
+        }
+    }
+}
+
+private struct MessageLabelChip: View {
+    @ObservedObject private var palette = PostPalette.shared
+    @LocalState private var hovering = false
+    let label: MailFolder
+    let remove: () -> Void
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(label.name).font(PostStyle.font(size: 10, weight: .medium))
+            Button(action: remove) {
+                Image(systemName: "xmark").font(PostStyle.font(size: 8, weight: .semibold))
+                    .frame(width: 14, height: 14).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(hovering ? 1 : 0)
+            .help("Remove \(label.name) from this message")
+            .accessibilityLabel("Remove \(label.name) from this message")
+        }
+        .foregroundStyle(PostStyle.accent)
+        .padding(.leading, 8).padding(.trailing, 5).padding(.vertical, 4)
+        .background(PostStyle.selection, in: RoundedRectangle(cornerRadius: 5))
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
 

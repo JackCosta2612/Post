@@ -428,7 +428,7 @@ struct ReadingPane: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(selected.subject).font(PostStyle.font(size: 23, weight: .semibold)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                         let labels = store.folders.filter { selected.labels.contains($0.id) && ($0.isCustom || $0.id == "CATEGORY_PROMOTIONS") }
-                        if !labels.isEmpty { FlowLabelChips(labels: labels) }
+                        if !labels.isEmpty { FlowLabelChips(labels: labels) { label in store.actOnSelected(add: [], remove: [label.id], ids: [selected.id]) } }
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 24).padding(.bottom, 16)
                     ScrollViewReader { proxy in
                         ScrollView {
