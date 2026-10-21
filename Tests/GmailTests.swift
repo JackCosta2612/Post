@@ -120,6 +120,10 @@ struct GmailTests {
         }
         let (reconciled, _) = try await client.list(query: "in:inbox is:unread", cached: [archived])
         check(reconciled.first?.labels == ["INBOX", "UNREAD"] && reconciled.first?.body == archived.body, "Query conflicts refresh labels without downloading a cached body again")
+        archived.labels = ["CATEGORY_PROMOTIONS", "TRASH", "UNREAD"]
+        let (restoredPromotions, _) = try await client.list(query: "category:promotions -in:trash -in:spam", cached: [archived])
+        check(restoredPromotions.first?.labels == ["INBOX", "UNREAD"] && restoredPromotions.first?.body == archived.body, "Stale trash labels cannot hide messages returned by a non-trash query")
+        check(GmailClient.excludedLabels("label:\"-in:trash\" -in:spam") == ["SPAM"], "Quoted label names do not act as exclusion operators")
         check(GmailClient.quotaCost("messages/m1", method: "GET") == 20 && GmailClient.quotaCost("messages/send", method: "POST") == 100, "Pacing accounts for Gmail method costs")
         let limited = GmailClient(session: session, client: .init(clientID: "test", clientSecret: "test"), token: .init(access: "test-access", refresh: "test-refresh", expiry: Date().addingTimeInterval(3600)), restore: false)
         var quotaCalls = 0

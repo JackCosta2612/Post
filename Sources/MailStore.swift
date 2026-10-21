@@ -29,7 +29,8 @@ final class MailStore: ObservableObject {
     private var searchGeneration = UUID()
     var isSearching: Bool { !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     var canLoadMore: Bool { isSearching ? searchNextPage != nil : nextPage != nil }
-    func loadMoreVisible() async { if isSearching { await fetchSearch(more: true) } else { await refresh(more: true) } }
+    var needsFolderRefill: Bool { connected && !isSearching && !viewingDrafts && visibleMessages.isEmpty && nextPage != nil }
+    func loadMoreVisible() async { if isSearching { await fetchSearch(more: true) } else { await refresh(more: !needsFolderRefill) } }
     func scheduleSearch() {
         cachedVisibleMessages = nil; searchTask?.cancel(); searchGeneration = UUID(); remoteSearchIDs = []; searchNextPage = nil; searching = false
         guard isSearching, connected else { return }
@@ -120,13 +121,14 @@ final class MailStore: ObservableObject {
     var awaitingFolderList: Bool { !isSearching && connected && folderSnapshots[folderCacheKey] == nil }
     @Published var unreadFolders: Set<String> = [] { didSet { cachedVisibleMessages = nil } }
     var unreadOnly: Bool { unreadFolders.contains(folderID) }
-    var activeFolderQuery: String {
-        var query = folderID == "primary" ? primaryQuery : (folderID == "all" ? MailFolder.defaults.first { $0.id == "all" }!.query : folder.query)
-        if folder.isCustom || ["CATEGORY_PROMOTIONS", "STARRED", "SENT"].contains(folderID) {
+    func query(for folder: MailFolder, unread: Bool = false) -> String {
+        var query = folder.id == "primary" ? primaryQuery : (folder.id == "all" ? MailFolder.defaults.first { $0.id == "all" }!.query : folder.query)
+        if folder.isCustom || ["CATEGORY_PROMOTIONS", "STARRED", "SENT"].contains(folder.id) {
             query += " -in:trash -in:spam"
         }
-        return query + (unreadOnly ? " is:unread" : "")
+        return query + (unread ? " is:unread" : "")
     }
+    var activeFolderQuery: String { query(for: folder, unread: unreadOnly) }
     var folderCacheKey: String { folder.id + "|" + activeFolderQuery }
     var sectionCount: Int { unreadOnly ? folder.unreadCount : (folderID == "DRAFT" ? max(folder.totalCount, drafts.count) : folder.totalCount) }
     func toggleUnreadFilter() {
@@ -455,9 +457,8 @@ final class MailStore: ObservableObject {
     }
     private func updateFolderSnapshots(_ message: MailMessage) {
         for f in folders {
-            let base = f.id + "|" + (f.id == "primary" ? primaryQuery : f.query)
             for unread in [false, true] {
-                let key = base + (unread ? " is:unread" : "")
+                let key = f.id + "|" + query(for: f, unread: unread)
                 guard var snapshot = folderSnapshots[key] else { continue }
                 if contains(f, message) && (!unread || message.unread) { snapshot.ids.insert(message.id) } else { snapshot.ids.remove(message.id) }
                 folderSnapshots[key] = snapshot
@@ -586,7 +587,13 @@ final class MailStore: ObservableObject {
             restoreFolderSnapshot()
             pending.append(.init(messageID: id, add: add, remove: remove))
             Task {
-                do { try await flushPending(); status = "Saved to Gmail" }
+                do {
+                    try await flushPending()
+                    status = "Saved to Gmail"
+                    // Restart at page one after a batch empties the loaded window.
+                    // Gmail page tokens describe the list before the removals.
+                    if !flushing && pending.isEmpty && needsFolderRefill { scheduleLoad() }
+                }
                 catch { status = "Change queued • it will retry on refresh"; self.error = error.localizedDescription }
             }
         } else { updateLocalCounts(); status = "Preview change saved locally" }

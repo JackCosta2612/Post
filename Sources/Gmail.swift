@@ -254,7 +254,7 @@ actor GmailClient {
             let items = try await withThrowingTaskGroup(of: MailMessage.self) { group in
                 for id in batch { group.addTask {
                     if var existing = cachedMap[id] {
-                        if !Set(Self.requiredLabels(query)).isSubset(of: existing.labels) {
+                        if !Set(Self.requiredLabels(query)).isSubset(of: existing.labels) || !Set(Self.excludedLabels(query)).isDisjoint(with: existing.labels) {
                             let metadata = try await self.request("messages/\(id)", query: ["format": "minimal"])
                             existing.labels = Set(metadata["labelIds"] as? [String] ?? [])
                         }
@@ -267,6 +267,10 @@ actor GmailClient {
             messages += items
         }
         return (messages.sorted { $0.date > $1.date }, json["nextPageToken"] as? String)
+    }
+    static func excludedLabels(_ query: String) -> [String] {
+        let operators = Set(query.replacingOccurrences(of: "\"[^\"]*\"", with: "", options: .regularExpression).split(separator: " ").map(String.init))
+        return [("-in:trash", "TRASH"), ("-in:spam", "SPAM"), ("-in:sent", "SENT"), ("-in:drafts", "DRAFT")].compactMap { operators.contains($0.0) ? $0.1 : nil }
     }
     static func requiredLabels(_ query: String) -> [String] {
         let operators = query.replacingOccurrences(of: "\"[^\"]*\"", with: "", options: .regularExpression).split(separator: " ")

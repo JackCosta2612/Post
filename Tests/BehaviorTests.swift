@@ -104,6 +104,21 @@ struct BehaviorTests {
         folderCache.folderSnapshots[folderCache.folderCacheKey] = FolderSnapshot(ids: [], nextPage: nil)
         folderCache.chooseFolder("CATEGORY_PROMOTIONS")
         check(folderCache.nextPage == "promotions-page-2", "Pagination is restored with its folder")
+        folderCache.loadTask?.cancel()
+        let savedPromotion = folderCache.messages.first { $0.id == promotion.id }!
+        folderCache.messages.removeAll { $0.id == promotion.id }
+        check(folderCache.canLoadMore && folderCache.needsFolderRefill, "Deleting the loaded label window preserves pagination and requests a fresh first page")
+        folderCache.nextPage = nil
+        check(!folderCache.needsFolderRefill, "An exhausted empty label does not trigger a refill loop")
+        folderCache.nextPage = "promotions-page-2"
+        folderCache.messages.append(savedPromotion)
+        var trashedPromotion = savedPromotion
+        trashedPromotion.labels.insert("TRASH")
+        folderCache.merge([trashedPromotion])
+        check(folderCache.currentRemoteIDs?.contains(promotion.id) == false, "Moving mail removes it from the exact paginated label snapshot")
+        folderCache.merge([savedPromotion])
+
+        check(!folderCache.needsFolderRefill, "A label with remaining visible mail does not reset pagination")
         folderCache.loadTask?.cancel(); folderCache.persist(); folderCache.flushCache()
         let restoredFolders = MailStore(directory: folderCache.directory)
         restoredFolders.connected = true; restoredFolders.chooseFolder("newsletters")

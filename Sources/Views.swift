@@ -300,7 +300,7 @@ struct MailWindow: View {
             } else if store.awaitingFolderList {
                 Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if store.visibleMessages.isEmpty {
-                VStack(spacing: 12) { Image(systemName: store.search.isEmpty ? "tray" : "magnifyingglass").font(PostStyle.font(size: 28)).foregroundStyle(.tertiary); Text(store.search.isEmpty ? "No messages here" : "No matching messages").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 12) { Image(systemName: store.search.isEmpty ? "tray" : "magnifyingglass").font(PostStyle.font(size: 28)).foregroundStyle(.tertiary); Text(store.search.isEmpty ? "No messages here" : "No matching messages").foregroundStyle(.secondary); if store.canLoadMore { Button(store.isSearching ? "More search results" : "Load more messages") { Task { await store.loadMoreVisible() } }.disabled(store.busy || store.searching) } }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView { LazyVStack(spacing: 0) { ForEach(store.visibleMessages) { message in MessageRow(message: message).id(message.id) }; if store.canLoadMore { Button(store.isSearching ? "More search results" : "Load more messages") { Task { await store.loadMoreVisible() } }.padding(20).disabled(store.busy || store.searching) } } }
