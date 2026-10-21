@@ -29,6 +29,7 @@ private struct MessageLabelChip: View {
                     .frame(width: 14, height: 14).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .pointerHover()
             .opacity(hovering ? 1 : 0)
             .help("Remove \(label.name) from this message")
             .accessibilityLabel("Remove \(label.name) from this message")

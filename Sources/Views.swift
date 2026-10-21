@@ -985,6 +985,9 @@ struct PointerHover: ViewModifier {
     @Environment(\.isEnabled) private var enabled
     func body(content: Content) -> some View {
         content.background(PointerCursorRegion(enabled: enabled))
+            .onContinuousHover { phase in
+                if enabled, case .active = phase { NSCursor.pointingHand.set() }
+            }
     }
 }
 private struct PointerCursorRegion: NSViewRepresentable {
@@ -998,6 +1001,24 @@ private struct PointerCursorRegion: NSViewRepresentable {
     }
     final class CursorView: NSView {
         var enabled = true
+        private var cursorTracking: NSTrackingArea?
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            if let cursorTracking { removeTrackingArea(cursorTracking) }
+            let area = NSTrackingArea(rect: .zero, options: [.cursorUpdate, .mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect], owner: self)
+            addTrackingArea(area)
+            cursorTracking = area
+            window?.invalidateCursorRects(for: self)
+        }
+        override func cursorUpdate(with event: NSEvent) {
+            if enabled { NSCursor.pointingHand.set() }
+        }
+        override func mouseEntered(with event: NSEvent) {
+            if enabled { NSCursor.pointingHand.set() }
+        }
+        override func mouseExited(with event: NSEvent) {
+            window?.invalidateCursorRects(for: self)
+        }
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
         override func resetCursorRects() {
             super.resetCursorRects()
