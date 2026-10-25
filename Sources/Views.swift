@@ -39,7 +39,8 @@ enum PostStyle {
 struct MailWindow: View {
     @ObservedObject private var palette = PostPalette.shared
     @EnvironmentObject var store: MailStore
-    @LocalState private var rowFrames: [String: CGRect] = [:]
+    // Row positions change every scroll frame. They are animation inputs, not UI state.
+    @LocalState private var rowFrames = MessageFrameCache()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var searchFocused: Bool
     @LocalState private var newLabel = ""
@@ -55,7 +56,7 @@ struct MailWindow: View {
         .onChange(of: store.preferences.markRead) { _, _ in if let id = store.selectedID { store.scheduleRead(id) } }
         .onChange(of: store.preferences.cacheMode) { _, _ in configurePresentation(); store.warmNearbyThreads() }
         .coordinateSpace(name: "mailWindow")
-        .onPreferenceChange(MessageFrames.self) { rowFrames = $0 }
+        .onPreferenceChange(MessageFrames.self) { rowFrames.frames = $0 }
         .ignoresSafeArea(.container, edges: .top)
         .background(WindowChrome())
         .buttonStyle(PostButtonStyle())
@@ -129,7 +130,7 @@ struct MailWindow: View {
                                 BulkSelectionPane().frame(width: geometry.size.width, height: geometry.size.height).transition(.opacity)
                             } else if let message = store.selected {
                                 let destination = geometry.frame(in: .named("mailWindow"))
-                                let source = rowFrames[message.id] ?? destination
+                                let source = rowFrames.frames[message.id] ?? destination
                                 ReadingPane()
                                     .frame(width: geometry.size.width, height: geometry.size.height)
                                     .background(PostStyle.surface, in: RoundedRectangle(cornerRadius: 18))
@@ -986,7 +987,7 @@ struct PointerHover: ViewModifier {
     func body(content: Content) -> some View {
         content.background(PointerCursorRegion(enabled: enabled))
             .onContinuousHover { phase in
-                if enabled, case .active = phase { NSCursor.pointingHand.set() }
+                if enabled, case .active = phase, NSCursor.current != .pointingHand { NSCursor.pointingHand.set() }
             }
     }
 }
@@ -1008,7 +1009,6 @@ private struct PointerCursorRegion: NSViewRepresentable {
             let area = NSTrackingArea(rect: .zero, options: [.cursorUpdate, .mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect], owner: self)
             addTrackingArea(area)
             cursorTracking = area
-            window?.invalidateCursorRects(for: self)
         }
         override func cursorUpdate(with event: NSEvent) {
             if enabled { NSCursor.pointingHand.set() }
@@ -1082,6 +1082,10 @@ struct WindowChrome: NSViewRepresentable {
             }
         }
     }
+}
+
+final class MessageFrameCache {
+    var frames: [String: CGRect] = [:]
 }
 
 struct MessageFrames: PreferenceKey {
