@@ -12,6 +12,26 @@ struct MailAttachment: Codable, Identifiable, Equatable {
     var contentID: String? = nil
 }
 
+enum MailPreviewText {
+    private static let entities = try! NSRegularExpression(pattern: "&(#(?:[xX][0-9a-fA-F]+|[0-9]+)|[A-Za-z][A-Za-z0-9]+);")
+    private static let named: [String: String] = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": " ", "rsquo": "’", "lsquo": "‘", "rdquo": "”", "ldquo": "“", "ndash": "–", "mdash": "—", "hellip": "…", "bull": "•", "middot": "·", "copy": "©", "reg": "®", "trade": "™", "euro": "€", "pound": "£", "yen": "¥", "agrave": "à", "egrave": "è", "eacute": "é", "igrave": "ì", "ograve": "ò", "ugrave": "ù", "auml": "ä", "ouml": "ö", "uuml": "ü", "szlig": "ß"]
+    static func decode(_ value: String) -> String {
+        guard value.contains("&") else { return value }
+        var result = value
+        for match in entities.matches(in: value, range: NSRange(value.startIndex..., in: value)).reversed() {
+            guard let tokenRange = Range(match.range(at: 1), in: value), let range = Range(match.range, in: result) else { continue }
+            let token = String(value[tokenRange])
+            var decoded = named[token]
+            if token.hasPrefix("#") {
+                let hex = token.lowercased().hasPrefix("#x")
+                if let number = UInt32(token.dropFirst(hex ? 2 : 1), radix: hex ? 16 : 10), number != 0, let scalar = UnicodeScalar(number) { decoded = String(scalar) }
+            }
+            if let decoded { result.replaceSubrange(range, with: decoded) }
+        }
+        return result
+    }
+}
+
 struct MailMessage: Codable, Identifiable, Equatable {
     var id: String
     var threadID: String
@@ -54,6 +74,7 @@ struct MailMessage: Codable, Identifiable, Equatable {
             Range($0.range(at: 1), in: html).map { Self.normalizedContentID(String(html[$0])) }
         })
     }
+    var previewSnippet: String { MailPreviewText.decode(snippet) }
     var unread: Bool { labels.contains("UNREAD") }
     var senderName: String { from.split(separator: "<").first.map(String.init)?.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\"", with: "") ?? from }
     var recipientNames: String {

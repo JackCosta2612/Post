@@ -247,7 +247,7 @@ final class MailStore: ObservableObject {
                 if let remote = currentRemoteIDs, connected, !remote.contains(message.id) { return false }
                 guard contains(folder, message), !unreadOnly || message.unread else { return false }
             }
-            return query.isEmpty || [message.from, message.subject, message.snippet, message.body].contains {
+            return query.isEmpty || [message.from, message.subject, message.previewSnippet, message.body].contains {
                 $0.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
             }
         }

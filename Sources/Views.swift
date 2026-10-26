@@ -367,8 +367,8 @@ struct MessageRow: View {
 
     }
     private var searchSnippet: String {
-        guard !store.search.isEmpty, !message.snippet.localizedCaseInsensitiveContains(store.search),
-              let match = message.body.range(of: store.search, options: [.caseInsensitive, .diacriticInsensitive]) else { return message.snippet }
+        guard !store.search.isEmpty, !message.previewSnippet.localizedCaseInsensitiveContains(store.search),
+              let match = message.body.range(of: store.search, options: [.caseInsensitive, .diacriticInsensitive]) else { return message.previewSnippet }
         let start = message.body.index(match.lowerBound, offsetBy: -35, limitedBy: message.body.startIndex) ?? message.body.startIndex
         let end = message.body.index(match.upperBound, offsetBy: 100, limitedBy: message.body.endIndex) ?? message.body.endIndex
         return (start == message.body.startIndex ? "" : "…") + message.body[start..<end].replacingOccurrences(of: "\n", with: " ")

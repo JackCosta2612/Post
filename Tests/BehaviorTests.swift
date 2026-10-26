@@ -47,6 +47,10 @@ struct BehaviorTests {
         check(MessageQuote.split("Hello\n\nOn Tuesday, Alex wrote:\n> Previous").body == "Hello", "Reply header is folded with quote")
         check(MessageQuote.split("Hello\n> Previous").quote == "> Previous", "Plain quoted lines remain expandable")
         check(MessageQuote.split("Unquoted message").quote == nil, "Unquoted content stays visible")
+        check(MailPreviewText.decode("non c&#39;è problema &amp; grazie") == "non c'è problema & grazie", "Gmail snippet entities display as punctuation")
+        check(MailPreviewText.decode("&#x2019; &#128512; &quot; &rsquo;") == "’ 😀 \" ’", "Hexadecimal and supplementary Unicode entities decode")
+        check(MailPreviewText.decode("&unknown; &#xD800; &#99999999;") == "&unknown; &#xD800; &#99999999;", "Invalid and unknown entities stay intact")
+        check(MailPreviewText.decode("&amp;lt;b&amp;gt; <literal>") == "&lt;b&gt; <literal>", "Preview decoding preserves literal text without parsing HTML")
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("PostTests-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         let downloads = directory.appendingPathComponent("Downloads")
