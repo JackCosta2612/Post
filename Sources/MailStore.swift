@@ -109,6 +109,7 @@ final class MailStore: ObservableObject {
     private var cacheWork: DispatchWorkItem?
     private var messageIndex: [String: MailMessage] = [:]
     private var threadIndex: [String: [MailMessage]] = [:]
+    private var threadActivityDates: [String: Date] = [:]
     private var threadFetched: [String: Date] = [:]
     var selected: MailMessage? { guard !bulkMode else { return nil }; return selectedID.flatMap { messageIndex[$0] } }
     var threadMessages: [MailMessage] {
@@ -251,7 +252,15 @@ final class MailStore: ObservableObject {
                 $0.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
             }
         }
-        let sorted = values.sorted { $0.date > $1.date }; cachedVisibleMessages = sorted; return sorted
+        let sorted = values.sorted {
+            let left = listDate(for: $0), right = listDate(for: $1)
+            if left != right { return left > right }
+            return $0.date == $1.date ? $0.id < $1.id : $0.date > $1.date
+        }; cachedVisibleMessages = sorted; return sorted
+    }
+    func listDate(for message: MailMessage) -> Date {
+        guard preferences.groupConversations != false, !["TRASH", "SPAM"].contains(folderID) else { return message.date }
+        return max(message.date, threadActivityDates[message.threadID] ?? message.date)
     }
     init(directory: URL? = nil, gmailClient: GmailClient? = nil) {
         self.demoMode = Bundle.main.bundleIdentifier == "com.jack.Post.demo"
@@ -510,8 +519,16 @@ final class MailStore: ObservableObject {
             let page = more ? nextPage : nil
             let (incoming, pageToken) = try await gmail.list(query: query, page: page, cached: historyValid ? messages : [])
             guard !Task.isCancelled, folderID == viewID, folderCacheKey == cacheKey, refreshGeneration == generation else { return }
+            let previouslyListed = currentRemoteIDs ?? []
             merge(incoming)
-            currentRemoteIDs = more ? (currentRemoteIDs ?? []).union(incoming.map(\.id)) : Set(incoming.map(\.id))
+            // Gmail pages are ordered by individual received dates. Retain loaded
+            // conversations whose newer reply places them ahead of this page.
+            let cutoff = incoming.map(\.date).min() ?? .distantFuture
+            let promoted = pageToken != nil ? Set(messages.filter {
+                previouslyListed.contains($0.id) && contains(folder, $0) && (!unreadOnly || $0.unread)
+                    && listDate(for: $0) > max($0.date, cutoff)
+            }.map(\.id)) : Set<String>()
+            currentRemoteIDs = more ? (currentRemoteIDs ?? []).union(incoming.map(\.id)) : Set(incoming.map(\.id)).union(promoted)
             nextPage = pageToken
             folderSnapshots[cacheKey] = FolderSnapshot(ids: currentRemoteIDs ?? [], nextPage: pageToken)
             warmNearbyThreads()
@@ -1055,6 +1072,9 @@ extension MailStore {
     private func rebuildThreadIndex() {
         messageIndex = Dictionary(messages.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         threadIndex = Dictionary(grouping: messages, by: \.threadID).mapValues { $0.sorted { $0.date == $1.date ? $0.id < $1.id : $0.date < $1.date } }
+        threadActivityDates = threadIndex.compactMapValues { values in
+            values.last { $0.labels.isDisjoint(with: ["DRAFT", "TRASH", "SPAM"]) }?.date
+        }
     }
     nonisolated private static func writeCache(_ snapshot: MailCache, to directory: URL) throws {
         var cache = snapshot

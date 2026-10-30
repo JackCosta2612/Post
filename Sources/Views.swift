@@ -374,9 +374,10 @@ struct MessageRow: View {
         return (start == message.body.startIndex ? "" : "…") + message.body[start..<end].replacingOccurrences(of: "\n", with: " ")
     }
     private var dateLabel: String {
-        if Calendar.current.isDateInToday(message.date) { return message.date.formatted(date: .omitted, time: .shortened) }
-        if Calendar.current.isDateInYesterday(message.date) { return "Yesterday" }
-        return message.date.formatted(.dateTime.month(.abbreviated).day())
+        let date = store.listDate(for: message)
+        if Calendar.current.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
+        if Calendar.current.isDateInYesterday(date) { return "Yesterday" }
+        return date.formatted(.dateTime.month(.abbreviated).day())
     }
 }
 
