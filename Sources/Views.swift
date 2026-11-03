@@ -399,7 +399,7 @@ struct ReadingPane: View {
         centerTask?.cancel()
         centerTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 150_000_000)
-            guard !Task.isCancelled, centeringID == target, store.selectedID == target else { return }
+            guard !Task.isCancelled, automaticPositioning, centeringID == target, store.selectedID == target else { return }
             proxy.scrollTo(scrollTarget, anchor: .top)
             await Task.yield()
             guard !Task.isCancelled, store.selectedID == target else { return }
@@ -434,7 +434,10 @@ struct ReadingPane: View {
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 24).padding(.bottom, 16)
                     ScrollViewReader { proxy in
                         ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 16) {
+                            // Keep measured message heights alive while scrolling. A lazy
+                            // stack recreates offscreen WebKit rows at their placeholder
+                            // height, shifting the viewport when they expand again.
+                            VStack(alignment: .leading, spacing: 16) {
                                 ForEach(store.threadMessages) { message in
                                     if message.id != store.threadMessages.first?.id {
                                         Rectangle().fill(PostStyle.accent.opacity(0.5)).frame(height: 1).padding(.horizontal, 18).accessibilityHidden(true)
@@ -546,7 +549,8 @@ final class ThreadWebView: WKWebView {
         guard window != nil else { return }
         wheelMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
             guard let self, event.window === self.window,
-                  self.bounds.contains(self.convert(event.locationInWindow, from: nil)) else { return event }
+                  !self.isHiddenOrHasHiddenAncestor,
+                  self.visibleRect.contains(self.convert(event.locationInWindow, from: nil)) else { return event }
             var parent = self.superview
             while let current = parent {
                 if let scroll = current as? NSScrollView { NotificationCenter.default.post(name: .init("PostThreadUserScrolled"), object: self); scroll.scrollWheel(with: event); return nil }
