@@ -396,9 +396,12 @@ struct ReadingPane: View {
     private func settleCenter(_ proxy: ScrollViewProxy, readyID: String) {
         guard automaticPositioning, let target = centeringID, target == store.selectedID else { return }
         if readyID == target { selectedBodyReady = true }
-        centerTask?.cancel()
+        // Coalesce layout callbacks without restarting the reveal timer. A busy
+        // thread may keep reporting image heights long after its selected body is ready.
+        guard centerTask == nil else { return }
         centerTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 150_000_000)
+            defer { centerTask = nil }
+            await Task.yield()
             guard !Task.isCancelled, automaticPositioning, centeringID == target, store.selectedID == target else { return }
             proxy.scrollTo(scrollTarget, anchor: .top)
             await Task.yield()
@@ -451,7 +454,7 @@ struct ReadingPane: View {
                         }
                         .opacity(store.threadMessages.count <= 1 || positionedID == selected.id ? 1 : 0)
                         .task(id: selected.id) {
-                            centerTask?.cancel(); automaticPositioning = true; centeringID = selected.id; selectedBodyReady = selected.html.isEmpty || plain
+                            centerTask?.cancel(); centerTask = nil; automaticPositioning = true; centeringID = selected.id; selectedBodyReady = selected.html.isEmpty || plain
                             if store.threadMessages.count <= 1 {
                                 centeringID = nil; positionedID = selected.id
                                 proxy.scrollTo("thread-top", anchor: .top)
@@ -470,8 +473,8 @@ struct ReadingPane: View {
                             proxy.scrollTo(scrollTarget, anchor: .top)
                             settleCenter(proxy, readyID: selected.id)
                         }
-                        .onDisappear { centerTask?.cancel() }
-                        .id(selected.id)
+                        .onDisappear { centerTask?.cancel(); centerTask = nil }
+                        .id(selected.threadID)
                     }
                 }
             }
