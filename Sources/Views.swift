@@ -41,6 +41,7 @@ struct MailWindow: View {
     @EnvironmentObject var store: MailStore
     // Row positions change every scroll frame. They are animation inputs, not UI state.
     @LocalState private var rowFrames = MessageFrameCache()
+    @LocalState private var renderPreparation = RenderPreparation()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var searchFocused: Bool
     @LocalState private var newLabel = ""
@@ -72,8 +73,21 @@ struct MailWindow: View {
         .preferredColorScheme(PostStyle.scheme(store.preferences.appearance))
 
     }
-    var body: some View {
+    private var warmedWindow: some View {
         configuredWindow
+        .onReceive(store.$messages) { _ in scheduleRenderWarmup() }
+        .onReceive(store.$preferences) { _ in scheduleRenderWarmup() }
+        .onReceive(NotificationCenter.default.publisher(for: .init("PostWarmMessage"))) { event in
+            if let id = event.object as? String { scheduleRenderWarmup(preferredID: id) }
+        }
+        .onChange(of: store.selectedID) { _, _ in scheduleRenderWarmup() }
+        .onChange(of: store.folderID) { _, _ in scheduleRenderWarmup() }
+        .onChange(of: store.showSettings) { _, _ in scheduleRenderWarmup() }
+        .onChange(of: store.compose?.id) { _, _ in scheduleRenderWarmup() }
+        .onDisappear { renderPreparation.task?.cancel() }
+    }
+    var body: some View {
+        warmedWindow
         .accessibilityHidden(store.showSettings)
         .overlay {
             if store.showSettings {
@@ -131,7 +145,7 @@ struct MailWindow: View {
                             } else if let message = store.selected {
                                 let destination = geometry.frame(in: .named("mailWindow"))
                                 let source = rowFrames.frames[message.id] ?? destination
-                                ReadingPane()
+                                ReadingCard()
                                     .frame(width: geometry.size.width, height: geometry.size.height)
                                     .background(PostStyle.surface, in: RoundedRectangle(cornerRadius: 18))
                                     .clipShape(RoundedRectangle(cornerRadius: 18))
@@ -140,7 +154,10 @@ struct MailWindow: View {
                                         active: CardFlight(x: source.midX - destination.midX, y: source.midY - destination.midY, sx: source.width / max(1, destination.width), sy: source.height / max(1, destination.height), opacity: 0),
                                         identity: CardFlight(x: 0, y: 0, sx: 1, sy: 1, opacity: 1)))
                             }
-                        }.zIndex(1)
+                        }.background(GeometryReader { frame in
+                            Color.clear.onAppear { HTMLDocument.readerWidth = max(300, frame.size.width - 96) }
+                                .onChange(of: frame.size.width) { _, width in HTMLDocument.readerWidth = max(300, width - 96); scheduleRenderWarmup() }
+                        }).zIndex(1)
                     }.padding(.leading, 12).padding(.trailing, 22).padding(.bottom, 16)
                         .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -318,6 +335,24 @@ struct MailWindow: View {
         PostImageLoader.shared.configure(mode: store.preferences.cacheMode ?? "balanced", directory: store.directory)
         if store.preferences.remoteImages, store.preferences.cacheMode == "fast" { for message in store.visibleMessages.prefix(6) { PostImageLoader.shared.prefetch(message.html) } }
     }
+    private func scheduleRenderWarmup(preferredID: String? = nil) {
+        renderPreparation.task?.cancel()
+        renderPreparation.task = Task(priority: .background) { @MainActor in
+            do { try await Task.sleep(nanoseconds: 700_000_000) } catch { return }
+            guard !Task.isCancelled, !store.showSettings, store.compose == nil, !store.viewingDrafts else { return }
+            let roots = store.visibleMessages
+            let index = roots.firstIndex { $0.id == (preferredID ?? store.selectedID) } ?? 0
+            let nearby = Array(roots.dropFirst(max(0, index - 1)).prefix(3))
+            let threadIDs = Set(nearby.map(\.threadID))
+            let candidates = nearby + (store.preferences.groupConversations == false ? [] : store.messages.filter { threadIDs.contains($0.threadID) })
+            var seen = Set<String>()
+            let limit = store.preferences.cacheMode == "fast" ? 10 : 5
+            let messages = Array(candidates.filter { !$0.html.isEmpty && seen.insert($0.id).inserted }.prefix(limit))
+            let appearance = store.preferences.appearance
+            let dark = appearance == "dark" || (appearance != "light" && NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua)
+            await HTMLDocument.prewarm(messages, preferences: store.preferences, dark: dark)
+        }
+    }
     private var showLabelHints: Bool {
         store.commandHeld && store.canUseLabelShortcuts(isEditing: PostDelegate.isEditingText) && !searchFocused
     }
@@ -355,6 +390,9 @@ struct MessageRow: View {
                 .background(GeometryReader { geometry in Color.clear.preference(key: MessageFrames.self, value: [message.id: geometry.frame(in: .named("mailWindow"))]) }).contentShape(Rectangle())
                 .background(MailDragSurface(payload: store.messageDragPayload(message.id), title: message.subject))
         }.buttonStyle(PostButtonStyle(inset: 0, selected: store.actionIDs.contains(message.id))).accessibilityValue(store.bulkMode && store.bulkIDs.contains(message.id) ? "Selected for bulk actions" : !store.bulkMode && store.selectedID == message.id ? "Open message" : "").padding(.horizontal, 14).padding(.vertical, 3)
+        .onHover { hovering in
+            if hovering { NotificationCenter.default.post(name: .init("PostWarmMessage"), object: message.id) }
+        }
         .contextMenu {
             if !store.bulkMode { Button("Reply") { store.select(message.id); store.newCompose(kind: "reply") } }
             if message.labels.contains("TRASH") || message.labels.contains("SPAM") {
@@ -378,6 +416,28 @@ struct MessageRow: View {
         if Calendar.current.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
         if Calendar.current.isDateInYesterday(date) { return "Yesterday" }
         return date.formatted(.dateTime.month(.abbreviated).day())
+    }
+}
+
+// Animate the shell without asking SwiftUI to construct every WebKit view
+// in the same animation transaction. Keep the content alive after insertion.
+private struct ReadingCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @LocalState private var contentAttached = false
+    var body: some View {
+        ZStack {
+            if contentAttached { ReadingPane().transition(.identity) }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task {
+            if !reduceMotion {
+                do { try await Task.sleep(nanoseconds: 200_000_000) }
+                catch { return }
+            }
+            guard !Task.isCancelled else { return }
+            var transaction = Transaction(); transaction.disablesAnimations = true
+            withTransaction(transaction) { contentAttached = true }
+        }
     }
 }
 
@@ -585,8 +645,9 @@ struct HTMLMessage: View {
     var onReady: ((Bool) -> Void)? = nil
     @LocalState private var height: CGFloat = 100
     var body: some View {
-        HTMLDocument(html: html, remoteImages: remoteImages, originalColors: originalColors, customFonts: customFonts, foldQuotes: foldQuotes, fontName: fontName, fontSize: fontSize, onReady: onReady, height: $height)
-            .frame(height: height)
+        let document = HTMLDocument(html: html, remoteImages: remoteImages, originalColors: originalColors, customFonts: customFonts, foldQuotes: foldQuotes, fontName: fontName, fontSize: fontSize, onReady: onReady, height: $height)
+        document
+            .frame(height: height == 100 ? (document.preparedHeight ?? height) : height)
             .onChange(of: height) { _, _ in onReady?(true) }
             .background(originalColors ? Color.white : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -603,17 +664,44 @@ struct HTMLDocument: NSViewRepresentable {
     var fontName = "SF Pro Display"
     var fontSize: Double = 15
     var onReady: ((Bool) -> Void)? = nil
+    var preparedDark: Bool? = nil
+    private var isDark: Bool { preparedDark ?? (colorScheme == .dark) }
     @Environment(\.colorScheme) private var colorScheme
     @Binding var height: CGFloat
     // Keep a bounded set of live documents, including their decoded images and layout.
     static var cacheLimit = 40
+    static var readerWidth: CGFloat = 600
+    @MainActor static func prewarm(_ messages: [MailMessage], preferences: MailPreferences, dark: Bool) async {
+        // One document at a time, using the same bounded cache as the reader.
+        // Cancellation on selection stops speculative work before the next document.
+        for message in messages {
+            guard !Task.isCancelled else { return }
+            let document = HTMLDocument(html: message.html, remoteImages: preferences.remoteImages,
+                originalColors: preferences.customEmailColors != true, customFonts: preferences.customEmailFonts == true,
+                foldQuotes: true, fontName: preferences.readingFont ?? "SF Pro Display", fontSize: preferences.readingSize ?? 15,
+                preparedDark: dark, height: .constant(100))
+            guard !rendered.contains(where: { $0.key == document.renderKey }) else { continue }
+            let coordinator = document.makeCoordinator()
+            let view = document.makeWebView(coordinator: coordinator)
+            view.frame = NSRect(x: 0, y: 0, width: readerWidth, height: 100)
+            document.updateWebView(view, coordinator: coordinator)
+            // Let WebKit prepare layout in its own process before warming another.
+            for _ in 0..<20 where !coordinator.isReady {
+                do { try await Task.sleep(nanoseconds: 50_000_000) } catch { return }
+            }
+            do { try await Task.sleep(nanoseconds: 100_000_000) } catch { return }
+        }
+    }
     static func clearRenderedCache() {
         let removable = rendered.filter { $0.view.superview == nil }
         rendered.removeAll { $0.view.superview == nil }
         for entry in removable { entry.view.stopLoading(); entry.view.configuration.userContentController.removeScriptMessageHandler(forName: "postHeight"); entry.view.configuration.userContentController.removeScriptMessageHandler(forName: "postReady") }
     }
     private static var rendered: [(key: String, view: WKWebView, coordinator: Coordinator)] = []
-    private var renderKey: String { html + String(remoteImages) + String(colorScheme == .dark) + String(originalColors) + String(customFonts) + String(foldQuotes) + fontName + String(fontSize) }
+    private var renderKey: String { html + String(remoteImages) + String(isDark) + String(originalColors) + String(customFonts) + String(foldQuotes) + fontName + String(fontSize) }
+    var preparedHeight: CGFloat? {
+        Self.rendered.first { $0.key == renderKey && abs($0.view.bounds.width - Self.readerWidth) < 2 }?.coordinator.measuredHeight
+    }
     func makeCoordinator() -> Coordinator {
         if let entry = Self.rendered.first(where: { $0.key == renderKey && $0.view.superview == nil }) { return entry.coordinator }
         return Coordinator()
@@ -626,8 +714,9 @@ struct HTMLDocument: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: WKWebView, context: Context) -> CGSize? {
         CGSize(width: proposal.width ?? 600, height: context.coordinator.measuredHeight ?? height)
     }
-    func makeNSView(context: Context) -> WKWebView {
-        if let index = Self.rendered.firstIndex(where: { $0.key == renderKey && $0.coordinator === context.coordinator }) {
+    func makeNSView(context: Context) -> WKWebView { makeWebView(coordinator: context.coordinator) }
+    private func makeWebView(coordinator: Coordinator) -> WKWebView {
+        if let index = Self.rendered.firstIndex(where: { $0.key == renderKey && $0.coordinator === coordinator }) {
             let entry = Self.rendered.remove(at: index)
             Self.rendered.append(entry)
             return entry.view
@@ -697,12 +786,12 @@ struct HTMLDocument: NSViewRepresentable {
             if (found) { fragment.append(document.createTextNode(text.slice(end))); node.replaceWith(fragment); }
         }
         """#, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
-        config.userContentController.add(context.coordinator, name: "postHeight")
-        config.userContentController.add(context.coordinator, name: "postReady")
+        config.userContentController.add(coordinator, name: "postHeight")
+        config.userContentController.add(coordinator, name: "postReady")
         config.websiteDataStore = Self.webDataStore;
         config.setURLSchemeHandler(PostImageLoader.shared, forURLScheme: "post-image"); config.defaultWebpagePreferences.allowsContentJavaScript = false
-        let view = ThreadWebView(frame: .zero, configuration: config); view.navigationDelegate = context.coordinator; view.setValue(false, forKey: "drawsBackground")
-        Self.rendered.append((renderKey, view, context.coordinator))
+        let view = ThreadWebView(frame: .zero, configuration: config); view.navigationDelegate = coordinator; view.setValue(false, forKey: "drawsBackground")
+        Self.rendered.append((renderKey, view, coordinator))
         while Self.rendered.count > Self.cacheLimit {
             guard let index = Self.rendered.firstIndex(where: { $0.view.superview == nil && $0.view !== view }) else { break }
             let removed = Self.rendered.remove(at: index)
@@ -712,36 +801,37 @@ struct HTMLDocument: NSViewRepresentable {
         }
         return view
     }
-    func updateNSView(_ view: WKWebView, context: Context) {
-        context.coordinator.onReady = onReady
-        context.coordinator.setHeight = { value in if abs(height - value) > 1 { height = value } }
+    func updateNSView(_ view: WKWebView, context: Context) { updateWebView(view, coordinator: context.coordinator) }
+    private func updateWebView(_ view: WKWebView, coordinator: Coordinator) {
+        coordinator.onReady = onReady
+        coordinator.setHeight = { value in if abs(height - value) > 1 { height = value } }
         let signature = renderKey
-        guard context.coordinator.signature != signature else {
-            let coordinator = context.coordinator
+        guard coordinator.signature != signature else {
+            let coordinator = coordinator
             DispatchQueue.main.async {
                 if let measured = coordinator.measuredHeight { coordinator.setHeight?(measured) }
                 coordinator.reportReady(coordinator.isReady)
             }
             return
         }
-        context.coordinator.signature = signature
-        context.coordinator.isReady = false
-        context.coordinator.measuredHeight = nil
+        coordinator.signature = signature
+        coordinator.isReady = false
+        coordinator.measuredHeight = nil
         if let index = Self.rendered.firstIndex(where: { $0.view === view }) { Self.rendered[index].key = signature }
         let generation = UUID().uuidString
-        context.coordinator.generation = generation
-        DispatchQueue.main.async { [weak coordinator = context.coordinator] in
+        coordinator.generation = generation
+        DispatchQueue.main.async { [weak coordinator = coordinator] in
             guard coordinator?.generation == generation else { return }
             coordinator?.reportReady(false)
         }
         let images = remoteImages ? "post-image: data: cid:" : "data: cid:"
         let renderedHTML = remoteImages ? MessageHTML.cachedImageURLs(html) : html
-        let dark = colorScheme == .dark && !originalColors
+        let dark = isDark && !originalColors
         let colors = originalColors ? "" : "body{background:transparent!important;color:\(dark ? "#e5eaf1" : "#242a34")!important}body *{color:inherit!important;-webkit-text-fill-color:currentColor!important}p,span,td,th,div,li,table,h1,h2,h3,h4,h5,h6{background-color:transparent!important}a,a *{color:\(dark ? "#9ecafa" : "#176edc")!important}"
         let typography = customFonts ? "body,body *{font-family:\(MIMEBuilder.htmlEscape(fontName)),sans-serif!important;font-size:\(fontSize)px!important;line-height:1.65!important}" : ""
         let head = "<meta http-equiv='Content-Security-Policy' content=\"default-src 'none'; img-src \(images); style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'\"><style>body{background:white;color:#242a34;margin:0;font-family:-apple-system,sans-serif}html{overflow:hidden}details.post-quote{margin-top:14px}details.post-quote>summary{cursor:pointer;font:12px -apple-system,sans-serif;color:#7d8b9c;user-select:none}details.post-quote[open]>summary{margin-bottom:12px}\(colors)\(typography)</style>"
         let document = MessageHTML.viewerDocument(renderedHTML, head: head, generation: generation)
-        context.coordinator.navigation = view.loadHTMLString(document, baseURL: nil)
+        coordinator.navigation = view.loadHTMLString(document, baseURL: nil)
     }
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var signature = ""
@@ -749,9 +839,9 @@ struct HTMLDocument: NSViewRepresentable {
         var isReady = false
         var reportedReady: Bool?
         func reportReady(_ value: Bool) {
-            guard reportedReady != value else { return }
+            guard let onReady, reportedReady != value else { return }
             reportedReady = value
-            onReady?(value)
+            onReady(value)
         }
         var setHeight: ((CGFloat) -> Void)?
         var onReady: ((Bool) -> Void)?
@@ -1094,6 +1184,11 @@ struct WindowChrome: NSViewRepresentable {
             }
         }
     }
+}
+
+private final class RenderPreparation {
+    var task: Task<Void, Never>?
+    deinit { task?.cancel() }
 }
 
 final class MessageFrameCache {

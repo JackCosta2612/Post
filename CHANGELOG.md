@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Improved thread scrolling, loading, and opening animations.
+
 ## 0.2.8
 
 - Fix embedded image resolution for duplicate, encoded and case-varied content identifiers.
