@@ -460,17 +460,14 @@ struct ReadingPane: View {
                                 proxy.scrollTo("thread-top", anchor: .top)
                                 return
                             }
-                            proxy.scrollTo(scrollTarget, anchor: .top)
                             await Task.yield()
                             guard !Task.isCancelled, store.selectedID == selected.id else { return }
-                            proxy.scrollTo(scrollTarget, anchor: .top)
                             settleCenter(proxy, readyID: selected.id)
                         }
                         .onChange(of: store.threadMessages.map(\.id)) { _, _ in
                             guard automaticPositioning else { return }
                             guard store.threadMessages.count > 1 else { proxy.scrollTo("thread-top", anchor: .top); positionedID = selected.id; return }
                             centeringID = selected.id
-                            proxy.scrollTo(scrollTarget, anchor: .top)
                             settleCenter(proxy, readyID: selected.id)
                         }
                         .onDisappear { centerTask?.cancel(); centerTask = nil }
@@ -624,6 +621,7 @@ struct HTMLDocument: NSViewRepresentable {
     static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
         coordinator.setHeight = nil
         coordinator.onReady = nil
+        coordinator.reportedReady = nil
     }
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: WKWebView, context: Context) -> CGSize? {
         CGSize(width: proposal.width ?? 600, height: context.coordinator.measuredHeight ?? height)
@@ -722,7 +720,7 @@ struct HTMLDocument: NSViewRepresentable {
             let coordinator = context.coordinator
             DispatchQueue.main.async {
                 if let measured = coordinator.measuredHeight { coordinator.setHeight?(measured) }
-                coordinator.onReady?(coordinator.isReady)
+                coordinator.reportReady(coordinator.isReady)
             }
             return
         }
@@ -734,7 +732,7 @@ struct HTMLDocument: NSViewRepresentable {
         context.coordinator.generation = generation
         DispatchQueue.main.async { [weak coordinator = context.coordinator] in
             guard coordinator?.generation == generation else { return }
-            coordinator?.onReady?(false)
+            coordinator?.reportReady(false)
         }
         let images = remoteImages ? "post-image: data: cid:" : "data: cid:"
         let renderedHTML = remoteImages ? MessageHTML.cachedImageURLs(html) : html
@@ -749,6 +747,12 @@ struct HTMLDocument: NSViewRepresentable {
         var signature = ""
         var measuredHeight: CGFloat?
         var isReady = false
+        var reportedReady: Bool?
+        func reportReady(_ value: Bool) {
+            guard reportedReady != value else { return }
+            reportedReady = value
+            onReady?(value)
+        }
         var setHeight: ((CGFloat) -> Void)?
         var onReady: ((Bool) -> Void)?
         var generation = ""
@@ -763,7 +767,7 @@ struct HTMLDocument: NSViewRepresentable {
                 guard self.generation == token else { return }
                 self.measuredHeight = value
                 self.setHeight?(value)
-                if ready { self.isReady = true; self.onReady?(true) }
+                if ready { self.isReady = true; self.reportReady(true) }
             }
         }
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -774,7 +778,7 @@ struct HTMLDocument: NSViewRepresentable {
                 self.measuredHeight = min(max(CGFloat(number.doubleValue), 100), 30000)
                 self.setHeight?(self.measuredHeight!)
                 self.isReady = true
-                self.onReady?(true)
+                self.reportReady(true)
             }
         }
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
