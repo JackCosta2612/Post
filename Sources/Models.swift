@@ -268,6 +268,8 @@ struct MailCache: Codable {
     var folderSnapshots: [String: FolderSnapshot]? = nil
     var completedThreads: [String]? = nil
     var labelLearning: LabelLearning? = nil
+    var snoozedUntil: [String: Date]? = nil
+    var snoozeWakeDates: [String: Date]? = nil
 }
 
 extension Data {

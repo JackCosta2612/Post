@@ -104,6 +104,9 @@ struct MailWindow: View {
             }
         }
         .sheet(item: $store.compose) { draft in ComposePane(initial: draft).environmentObject(store) }
+        .sheet(item: $store.snoozeRequest) { request in
+            SnoozePane(request: request).environmentObject(store)
+        }
         .sheet(isPresented: $store.showLabels) { LabelPicker().environmentObject(store) }
         .alert("Post", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) { Button("OK") { store.error = nil } } message: { Text(store.error ?? "") }
         .alert("New label", isPresented: $showNewLabel) { TextField("Label name", text: $newLabel); Button("Create") { store.addLabel(newLabel); newLabel = "" }; Button("Cancel", role: .cancel) {} }
@@ -161,12 +164,12 @@ struct MailWindow: View {
                     }.padding(.leading, 12).padding(.trailing, 22).padding(.bottom, 16)
                         .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
                 }
-                if store.preferences.showShortcutHints != false || store.undoSendID != nil { footer }
+                if store.preferences.showShortcutHints != false || store.undoSendID != nil || !store.pending.isEmpty { footer }
             }
         }
     }
     private func sidebarRow(_ folder: MailFolder) -> some View {
-                        let count = folder.id == "TRASH" || store.preferences.sidebarBadges == false ? 0 : (store.preferences.totalCounts ? folder.totalCount : folder.unreadCount)
+                        let count = folder.id == "TRASH" || store.preferences.sidebarBadges == false ? 0 : store.folderCount(folder, unread: !store.preferences.totalCounts)
                         let selected = store.folderID == folder.id
                         return Button { NSApp.keyWindow?.makeFirstResponder(nil); store.chooseFolder(folder.id) } label: {
                             ZStack(alignment: .leading) {
@@ -364,7 +367,7 @@ struct MailWindow: View {
             }
             if store.undoSendID != nil { Button("Undo Send") { store.undoSend() }.font(PostStyle.font(size: 12, weight: .semibold)) }
             Spacer(minLength: 4)
-            Text(store.connected ? store.status : "Preview • local changes only").font(PostStyle.font(size: 10)).foregroundStyle(PostStyle.secondary).lineLimit(1)
+            Text(store.connected ? (store.pending.isEmpty ? store.status : "\(store.pending.count) changes waiting to sync · \(store.status)") : "Preview • local changes only").font(PostStyle.font(size: 10)).foregroundStyle(PostStyle.secondary).lineLimit(1)
             if !store.connected { Button("Connect Gmail") { store.showSettings = true }.font(PostStyle.font(size: 10)) }
         }.padding(.horizontal, 16).padding(.vertical, 10)
     }
@@ -398,6 +401,11 @@ struct MessageRow: View {
             if message.labels.contains("TRASH") || message.labels.contains("SPAM") {
                 Button("Move to Inbox") { store.prepareContextSelection(message.id); store.moveSelectedToInbox() }
             }
+            if store.snoozeDate(for: message) != nil {
+                Button("Unsnooze") { store.unsnooze(message) }
+            } else if store.canSnooze(message) {
+                Button("Snooze…") { store.snoozeRequest = SnoozeRequest(message: message) }
+            }
             Button("Apply label…") { store.prepareContextSelection(message.id); store.showLabels = true }
             Button("Archive") { store.prepareContextSelection(message.id); store.actOnSelected(add: [], remove: ["INBOX"], advance: true) }
             Button("Move to Trash") { store.prepareContextSelection(message.id); store.actOnSelected(add: ["TRASH"], remove: ["INBOX"], advance: true) }
@@ -412,10 +420,53 @@ struct MessageRow: View {
         return (start == message.body.startIndex ? "" : "…") + message.body[start..<end].replacingOccurrences(of: "\n", with: " ")
     }
     private var dateLabel: String {
+        if store.viewingSnoozed, let wake = store.snoozeDate(for: message) {
+            return wake.formatted(date: .abbreviated, time: .shortened)
+        }
         let date = store.listDate(for: message)
         if Calendar.current.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
         if Calendar.current.isDateInYesterday(date) { return "Yesterday" }
         return date.formatted(.dateTime.month(.abbreviated).day())
+    }
+}
+
+private struct SnoozePane: View {
+    @EnvironmentObject private var store: MailStore
+    @Environment(\.dismiss) private var dismiss
+    @LocalState private var date = Date().addingTimeInterval(3600)
+    @LocalState private var entireConversation = false
+    let request: SnoozeRequest
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Snooze").font(.headline)
+            Toggle("Snooze the entire conversation", isOn: $entireConversation)
+            HStack {
+                Button("In one hour") { schedule(Date().addingTimeInterval(3600)) }
+                Button("Tomorrow at 9 AM") {
+                    let calendar = Calendar.current
+                    if let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()),
+                       let morning = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) {
+                        schedule(morning)
+                    }
+                }
+            }
+            DatePicker("Until", selection: $date, in: Date()...)
+            Text("Hidden from Primary on this Mac until the selected time.")
+                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Snooze") { schedule(date) }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(date <= Date())
+            }
+        }.padding(20).frame(minWidth: 320)
+    }
+
+    private func schedule(_ date: Date) {
+        store.snooze(request.message, until: date, thread: entireConversation)
+        dismiss()
     }
 }
 

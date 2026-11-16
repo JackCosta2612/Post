@@ -92,6 +92,7 @@ actor GmailClient {
     var token: OAuthToken?
     let session: URLSession
     private let persistCredentials: Bool
+    private var restoreCredentialsOnConnect: Bool
     private var requestCosts: [(Date, Int)] = []
     private var cooldownUntil = Date.distantPast
     private var cooldownSeconds: Double = 60
@@ -108,7 +109,9 @@ actor GmailClient {
         if path == "labels" || path.hasPrefix("labels/") { return method == "GET" ? 1 : 5 }
         if path == "profile" { return 1 }
         if path == "messages" || path == "drafts" { return method == "GET" ? 5 : 10 }
-        if path.hasSuffix("/modify") || path.hasSuffix("/trash") || path.hasSuffix("/untrash") { return 5 }
+        if path == "messages/batchModify" { return 50 }
+        if path.hasSuffix("/modify") { return 5 }
+        if path.hasSuffix("/trash") || path.hasSuffix("/untrash") { return 20 }
         return 20
     }
     private func reserveQuota(_ cost: Int) async throws {
@@ -124,12 +127,16 @@ actor GmailClient {
     }
     init(session: URLSession = .shared, client: OAuthClient? = nil, token: OAuthToken? = nil, restore: Bool = true) {
         self.session = session; self.client = client; self.token = token; self.persistCredentials = restore
-        if restore {
-            if let data = SecureStore.read("oauth-client") { self.client = try? JSONDecoder().decode(OAuthClient.self, from: data) }
-            if let data = SecureStore.read("oauth-token") { self.token = try? JSONDecoder().decode(OAuthToken.self, from: data) }
-        }
+        restoreCredentialsOnConnect = restore
     }
-    func connectionState() -> (Bool, Bool) { (client != nil, client != nil && token != nil) }
+    func connectionState() -> (Bool, Bool) {
+        if restoreCredentialsOnConnect {
+            restoreCredentialsOnConnect = false
+            if let data = SecureStore.read("oauth-client") { client = try? JSONDecoder().decode(OAuthClient.self, from: data) }
+            if let data = SecureStore.read("oauth-token") { token = try? JSONDecoder().decode(OAuthToken.self, from: data) }
+        }
+        return (client != nil, client != nil && token != nil)
+    }
     func importClient(_ data: Data) throws {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any], let installed = json["installed"] as? [String: Any], let id = installed["client_id"] as? String, id.hasSuffix(".apps.googleusercontent.com") else { throw MailError.message("Choose the JSON file for a Google Desktop app OAuth client.") }
         let value = OAuthClient(clientID: id, clientSecret: installed["client_secret"] as? String ?? "")
@@ -360,6 +367,20 @@ actor GmailClient {
         return values.sorted { $0.date < $1.date }
     }
     func invalidateCounts() { countGeneration = UUID(); countCache = [:]; folderCache = nil }
+    func queueCooldown() -> TimeInterval { max(0, cooldownUntil.timeIntervalSinceNow) }
+
+    func modifyBatch(_ changes: [PendingChange]) async throws {
+        guard let first = changes.first else { return }
+        if changes.count == 1 {
+            try await modify(first)
+            return
+        }
+        invalidateCounts()
+        defer { invalidateCounts() }
+        _ = try await request("messages/batchModify", method: "POST", body: [
+            "ids": changes.map(\.messageID), "addLabelIds": first.add, "removeLabelIds": first.remove
+        ])
+    }
     func modify(_ change: PendingChange) async throws {
         invalidateCounts()
         defer { invalidateCounts() }

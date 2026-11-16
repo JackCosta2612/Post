@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Improved Gmail sync during bulk changes and added progress for queued changes.
+- Moved the local mail cache to SQLite.
+- Added snooze for messages and conversations.
+
 - Fixed loading more cached messages after bulk deletion.
 
 - Improved thread scrolling, loading, and opening animations.

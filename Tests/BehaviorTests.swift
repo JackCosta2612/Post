@@ -4,13 +4,18 @@ import AppKit
 final class DeliveryMock: URLProtocol, @unchecked Sendable {
     static var sends = 0
     static var fail = false
+    static var quotaLimited = false
+    static var mutations: [String] = []
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         let sending = request.url!.path.hasSuffix("messages/send")
         if sending { Self.sends += 1 }
+        let endpoint = request.url!.lastPathComponent
+        let mutatingLabels = ["modify", "batchModify", "trash"].contains(endpoint)
+        if mutatingLabels { Self.mutations.append(endpoint) }
         let value: [String: Any] = request.url!.path.hasSuffix("profile") ? ["emailAddress": "sender@example.com"] : sending ? ["id": "sent-test", "threadId": "sent-thread"] : ["id": "sent-test", "threadId": "sent-thread", "labelIds": ["SENT"], "payload": ["headers": [["name": "Subject", "value": "Scheduled"]]]]
-        let status = sending && Self.fail ? 400 : 200
+        let status = mutatingLabels && Self.quotaLimited ? 429 : (sending && Self.fail ? 400 : 200)
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: try! JSONSerialization.data(withJSONObject: value)); client?.urlProtocolDidFinishLoading(self)
     }
@@ -614,14 +619,63 @@ struct BehaviorTests {
         settingsStore.persist(); settingsStore.flushCache()
         let external = MailStore(directory: settingsStore.directory)
         check(external.messages.first { $0.id == settingsStore.messages[0].id }?.attachments.first?.data == Data("bytes".utf8), "Faster cache restores attachment bytes from disk")
-        let metadata = try JSONDecoder().decode(MailCache.self, from: Data(contentsOf: settingsStore.directory.appendingPathComponent("mail-cache.json")))
+        let metadata = try MailDatabase.load(from: settingsStore.directory)!
         check(metadata.messages.first { $0.id == settingsStore.messages[0].id }?.attachments.first?.data == nil && metadata.messages.first { $0.id == settingsStore.messages[0].id }?.attachments.first?.cachedFile != nil, "Faster cache avoids rewriting attachment bytes inside metadata")
         check(!settingsStore.setShortcut("compose", value: Shortcut(key: "0", command: true)), "Action shortcuts cannot conflict with label shortcuts")
         let emptyReply = ComposeDraft(to: "recipient@example.com", subject: "Reply")
         var styledEmpty = emptyReply; styledEmpty.richBody = Data("empty styling".utf8)
         check(!styledEmpty.hasUserChanges(from: emptyReply), "Formatting an empty reply does not create a draft")
+        let legacyDirectory = directory.appendingPathComponent("legacy-migration")
+        try FileManager.default.createDirectory(at: legacyDirectory, withIntermediateDirectories: true)
+        var legacyMessage = MailStore.samples()[0]
+        legacyMessage.labels = ["INBOX", "CATEGORY_PERSONAL", "UNREAD"]
+        let legacyDraft = ComposeDraft(to: "recipient@example.com", subject: "Local draft")
+        let legacyChange = PendingChange(messageID: legacyMessage.id, add: ["STARRED"], remove: [])
+        let legacySnapshot = MailCache(messages: [legacyMessage], drafts: [legacyDraft], pending: [legacyChange])
+        try JSONEncoder().encode(legacySnapshot).write(to: legacyDirectory.appendingPathComponent("mail-cache.json"))
+        let migrated = MailStore(directory: legacyDirectory)
+        check(migrated.drafts.first?.id == legacyDraft.id && migrated.pending.first?.id == legacyChange.id, "Legacy drafts and queued changes survive loading")
+        migrated.persist(); migrated.flushCache()
+        let migratedSnapshot = try MailDatabase.load(from: legacyDirectory)
+        check(migratedSnapshot?.messages.first?.id == legacyMessage.id && migratedSnapshot?.pending.first?.id == legacyChange.id, "SQLite migration saves mail and pending changes together")
+        let wake = Date().addingTimeInterval(90)
+        migrated.snooze(legacyMessage, until: wake, thread: true)
+        check(migrated.visibleMessages.isEmpty && migrated.sectionCount == 0, "Snoozing hides a message and adjusts Primary counts")
+        var laterThreadMessage = legacyMessage
+        laterThreadMessage.id = "new-thread-member"
+        migrated.merge([laterThreadMessage])
+        migrated.chooseFolder("post-snoozed")
+        check(migrated.visibleMessages.count == 2, "A snoozed conversation includes newly downloaded members")
+        migrated.flushCache()
+        let reopenedSnooze = MailStore(directory: legacyDirectory)
+        check(reopenedSnooze.snoozeDate(for: legacyMessage) == wake, "Snooze survives restarting")
+        reopenedSnooze.wakeSnoozed(now: wake)
+        check(reopenedSnooze.visibleMessages.count == 2 && reopenedSnooze.snoozeDate(for: legacyMessage) == nil, "Due conversation returns to Primary")
+        check(reopenedSnooze.messages.allSatisfy { $0.labels == legacyMessage.labels }, "Snooze leaves Gmail membership intact")
         let deliveryConfig = URLSessionConfiguration.ephemeral; deliveryConfig.protocolClasses = [DeliveryMock.self]
         let fakeGmail = GmailClient(session: URLSession(configuration: deliveryConfig), client: .init(clientID: "test.apps.googleusercontent.com", clientSecret: "test"), token: .init(access: "test-access", refresh: "test-refresh", expiry: Date().addingTimeInterval(3600)), restore: false)
+        let queue = MailStore(directory: directory.appendingPathComponent("mutation-queue"), gmailClient: fakeGmail)
+        queue.connected = true
+        queue.pending = [
+            .init(messageID: "batch-a", add: ["STARRED"], remove: []),
+            .init(messageID: "batch-b", add: ["STARRED"], remove: []),
+            .init(messageID: "trash-a", add: ["TRASH"], remove: ["INBOX"])
+        ]
+        try await queue.flushPending()
+        check(DeliveryMock.mutations == ["batchModify", "trash"] && queue.pending.isEmpty, "The queue batches compatible edits and drains Trash through its dedicated endpoint")
+        let limitedGmail = GmailClient(session: URLSession(configuration: deliveryConfig), client: .init(clientID: "test.apps.googleusercontent.com", clientSecret: "test"), token: .init(access: "test-access", refresh: "test-refresh", expiry: .distantFuture), restore: false)
+        let limitedQueue = MailStore(directory: directory.appendingPathComponent("limited-queue"), gmailClient: limitedGmail)
+        limitedQueue.connected = true
+        limitedQueue.pending = [.init(messageID: "retry-me", add: ["TRASH"], remove: ["INBOX"])]
+        DeliveryMock.quotaLimited = true
+        do {
+            try await limitedQueue.flushPending()
+            fatalError("Expected Gmail cooldown")
+        } catch MailError.rateLimited {
+            let wait = await limitedGmail.queueCooldown()
+            check(wait > 0 && limitedQueue.pending.count == 1, "A quota error leaves the change queued and supplies a retry delay")
+        }
+        DeliveryMock.quotaLimited = false
         let delivery = MailStore(directory: directory.appendingPathComponent("delivery"), gmailClient: fakeGmail)
         delivery.connected = true
         let scheduled = ComposeDraft(to: "recipient@example.com", subject: "Scheduled", body: "Test content")

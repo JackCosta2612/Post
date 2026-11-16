@@ -72,6 +72,12 @@ struct GmailTests {
         operations = []
         try await client.modify(.init(messageID: "m1", add: ["INBOX"], remove: ["TRASH"]))
         check(operations == ["untrash", "modify"], "Undo restores from Trash before applying inbox labels")
+        operations = []
+        try await client.modifyBatch([
+            .init(messageID: "m1", add: ["STARRED"], remove: []),
+            .init(messageID: "m2", add: ["STARRED"], remove: [])
+        ])
+        check(operations == ["batchModify"], "Compatible queued label changes use one Gmail request")
         let payload: [String: Any] = ["id": "inline", "payload": ["mimeType": "multipart/related", "parts": [
             ["mimeType": "text/html", "body": ["data": Data("<img src=\"cid:logo\">".utf8).base64URL]],
             ["mimeType": "image/png", "headers": [["name": "Content-ID", "value": "<logo>"]], "body": ["attachmentId": "image", "size": 3]]

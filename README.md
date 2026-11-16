@@ -40,6 +40,7 @@ See [build and signing instructions](docs/build.md) for prerequisites, Keychain 
 | **Keep moving** | Arrow-key navigation, selection without checkboxes, and custom label shortcuts. |
 | **Learns your labels** | Local learning follows your manual moves. Clear matches sort automatically; uncertain mail stays in the inbox. |
 | **A place for everything** | Reorder labels, hide the ones you don’t use, and move messages by dragging. |
+| **Come back to it later** | Snooze a message or conversation from Primary and find it in Snoozed until it returns. |
 | **The whole conversation** | Threads open at the selected message. Earlier quotes stay folded away. |
 | **Write when it suits you** | Rich text, attachments, saved drafts, Undo Send, and scheduled sending. |
 | **Make it yours** | Light and dark themes, accent colors, separate fonts, and adjustable list density. |
@@ -68,7 +69,7 @@ Typing keeps normal cursor and editing behavior. Escape after editing a reply of
 
 ## Data and limitations
 
-OAuth credentials stay in macOS Keychain. Cached messages, drafts, schedules, and preferences live in `~/Library/Application Support/Post/mail-cache.json`. Faster mode stores downloaded attachment bytes separately in `AttachmentCache`; remote images use `RemoteImages` under the same folder. The cache is local JSON, not a separately encrypted database. Remote attachment bytes are fetched when needed. Attachment clicks download directly to Downloads, with a configurable destination in Settings. HTML runs without sender-provided JavaScript.
+OAuth credentials stay in macOS Keychain. Cached messages, drafts, schedules, and preferences live in `~/Library/Application Support/Post/mail-cache.sqlite3`. Faster mode stores downloaded attachment bytes separately in `AttachmentCache`; remote images use `RemoteImages` under the same folder. The database is local and has no separate encryption layer. Post retains the previous JSON cache as a migration backup. Snoozes are local to Post and overdue messages return when the app reopens. Remote attachment bytes are fetched when needed. Attachment clicks download directly to Downloads, with a configurable destination in Settings. HTML runs without sender-provided JavaScript.
 
 Disconnecting removes the sign-in token but keeps cached mail. To remove local mail too, quit Post and remove its Application Support folder. Revoke the authorization in your Google account if you no longer use the app.
 
