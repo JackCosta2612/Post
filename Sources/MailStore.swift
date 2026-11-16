@@ -28,9 +28,38 @@ final class MailStore: ObservableObject {
     private var searchTask: Task<Void, Never>?
     private var searchGeneration = UUID()
     var isSearching: Bool { !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    var canLoadMore: Bool { isSearching ? searchNextPage != nil : nextPage != nil }
+    var canLoadMore: Bool {
+        if isSearching { return searchNextPage != nil }
+        return nextPage != nil || hasCachedFolderPage
+    }
+    var hasCachedFolderPage: Bool { !isSearching && !cachedFolderPage(limit: 1).isEmpty }
     var needsFolderRefill: Bool { connected && !isSearching && !viewingDrafts && visibleMessages.isEmpty && nextPage != nil }
-    func loadMoreVisible() async { if isSearching { await fetchSearch(more: true) } else { await refresh(more: !needsFolderRefill) } }
+
+    private func cachedFolderPage(limit: Int = 50) -> [MailMessage] {
+        guard connected, !viewingDrafts, let listed = currentRemoteIDs else { return [] }
+        let activeFolder = folder
+        let unread = unreadOnly
+        return Array(messages.lazy.filter {
+            !listed.contains($0.id) && self.contains(activeFolder, $0) && (!unread || $0.unread)
+        }.prefix(limit))
+    }
+
+    func loadMoreVisible() async {
+        if isSearching {
+            await fetchSearch(more: true)
+            return
+        }
+        let cached = cachedFolderPage()
+        if !cached.isEmpty {
+            let ids = (currentRemoteIDs ?? []).union(cached.map(\.id))
+            currentRemoteIDs = ids
+            folderSnapshots[folderCacheKey] = FolderSnapshot(ids: ids, nextPage: nextPage)
+            persist()
+            return
+        }
+        guard nextPage != nil else { return }
+        await refresh(more: !needsFolderRefill)
+    }
     func scheduleSearch() {
         cachedVisibleMessages = nil; searchTask?.cancel(); searchGeneration = UUID(); remoteSearchIDs = []; searchNextPage = nil; searching = false
         guard isSearching, connected else { return }
@@ -579,7 +608,10 @@ final class MailStore: ObservableObject {
         }
     }
     func flushPending() async throws {
-        guard !flushing else { return }
+        while flushing {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        try Task.checkCancellation()
         flushing = true; defer { flushing = false }
         while let first = pending.first {
             try await gmail.modify(first); pending.removeFirst(); persist()
@@ -604,6 +636,7 @@ final class MailStore: ObservableObject {
             restoreFolderSnapshot()
             pending.append(.init(messageID: id, add: add, remove: remove))
             Task {
+                guard !flushing else { return }
                 do {
                     try await flushPending()
                     status = "Saved to Gmail"
@@ -611,6 +644,7 @@ final class MailStore: ObservableObject {
                     // Gmail page tokens describe the list before the removals.
                     if !flushing && pending.isEmpty && needsFolderRefill { scheduleLoad() }
                 }
+                catch MailError.rateLimited { status = MailError.rateLimited.localizedDescription }
                 catch { status = "Change queued • it will retry on refresh"; self.error = error.localizedDescription }
             }
         } else { updateLocalCounts(); status = "Preview change saved locally" }

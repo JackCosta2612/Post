@@ -149,6 +149,13 @@ struct BehaviorTests {
         restoredFolders.chooseFolder("CATEGORY_PROMOTIONS")
         check(restoredFolders.visibleMessages.map(\.id) == [promotion.id], "Folder list survives app restart")
         restoredFolders.loadTask?.cancel()
+        folderCache.messages = [savedPromotion]
+        folderCache.currentRemoteIDs = []
+        folderCache.nextPage = "promotions-page-2"
+        check(folderCache.canLoadMore, "Cached Promotions mail is available after clearing the loaded list")
+        await folderCache.loadMoreVisible()
+        check(folderCache.visibleMessages.map(\.id) == [promotion.id], "Load more restores cached Promotions mail without a Gmail request")
+        check(folderCache.nextPage == "promotions-page-2", "Showing cached mail preserves remote pagination")
         let searching = MailStore(directory: directory.appendingPathComponent("Search"))
         var inboxMatch = searching.messages[0]; inboxMatch.id = "local-inbox"; inboxMatch.subject = "Needle"; inboxMatch.labels = ["INBOX"]
         var trashMatch = inboxMatch; trashMatch.id = "local-trash"; trashMatch.labels = ["TRASH"]

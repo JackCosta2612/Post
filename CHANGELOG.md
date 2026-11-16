@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed loading more cached messages after bulk deletion.
+
 - Improved thread scrolling, loading, and opening animations.
 
 ## 0.2.8
